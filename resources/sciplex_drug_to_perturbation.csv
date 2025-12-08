@@ -1,0 +1,190 @@
+,product_name,target
+0,TAK-901,AURKA+ctrl
+1,AG-490 (Tyrphostin B42),EGFR+ctrl
+2,Abexinostat (PCI-24781),HDAC8+ctrl
+3,Obatoclax Mesylate (GX15-070),BCL2+ctrl
+4,BMS-265246,CDK1+ctrl
+5,BMS-536924,IGF1R+ctrl
+6,AG-14361,PARP1+ctrl
+7,Carmofur,ASAH1+ctrl
+8,PJ34,PARP1+ctrl
+9,Tanespimycin (17-AAG),HSP90B1+ctrl
+10,PD98059,MAP2K1+ctrl
+11,Disulfiram,ALDH2+ctrl
+12,Droxinostat,HDAC8+ctrl
+13,Sodium Phenylbutyrate,HDAC8+ctrl
+14,AZ 960,JAK2+ctrl
+15,MK-5108 (VX-689),AURKA+ctrl
+16,Ellagic acid,TOP2A+ctrl
+17,Trametinib (GSK1120212),MAP2K1+ctrl
+18,Thalidomide,TNFAIP8+ctrl
+19,Meprednisone,NR3C1+ctrl
+20,BMS-911543,JAK2+ctrl
+21,ENMD-2076 L-(+)-Tartaric acid,AURKA+ctrl
+22,TG101209,JAK2+ctrl
+23,Glesatinib?(MGCD265),VEGFB+ctrl
+24,Fasudil (HA-1077) HCl,ROCK1+ctrl
+25,Prednisone ,NR3C1+ctrl
+26,Crizotinib (PF-02341066),ALK+ctrl
+27,PHA-680632,AURKA+ctrl
+28,Dasatinib,BCR+ctrl
+29,TGX-221,PIK3CA+ctrl
+30,Avagacestat (BMS-708163),APP+ctrl
+31,Gandotinib (LY2784544),JAK2+ctrl
+32,Iniparib (BSI-201),PARP1+ctrl
+33,SRT2104 (GSK2245840),SIRT2+ctrl
+34,Toremifene Citrate,ESR1+ctrl
+35,Ruxolitinib (INCB018424),JAK2+ctrl
+36,CEP-33779,JAK2+ctrl
+37,(+)-JQ1,BRD4+ctrl
+38,Alendronate sodium trihydrate,FDPS+ctrl
+39,Aurora A Inhibitor I,AURKA+ctrl
+40,A-366,ASH1L+ctrl
+41,IOX2,HIF1A+ctrl
+42,Ivosidenib (AG-120),IDH1+ctrl
+43,Selisistat (EX 527),SIRT1+ctrl
+44,Alisertib (MLN8237),AURKA+ctrl
+45,PD173074,FGFR1+ctrl
+46,BMS-754807,IGF1R+ctrl
+47,Cyclocytidine HCl,NA
+48,Quercetin,SRC+ctrl
+49,Mesna,NA
+50,KW-2449,AURKA+ctrl
+51,Azacitidine ,DNMT1+ctrl
+52,Divalproex Sodium,HDAC8+ctrl
+53,Valproic acid sodium salt (Sodium valproate),HDAC8+ctrl
+54,Motesanib Diphosphate (AMG-706),FLT1+ctrl
+55,WHI-P154,EGFR+JAK2
+56,CYC116,AURKA+FLT1
+57,PF-573228,PTK2+ctrl
+58,Ki8751,FLT1+ctrl
+59,Barasertib (AZD1152-HQPA),AURKA+ctrl
+60,Daphnetin,EGFR+ctrl
+61,CUDC-101,EGFR+HDAC8
+62,Filgotinib (GLPG0634),JAK2+ctrl
+63,NVP-BSK805 2HCl,JAK2+ctrl
+64,2-Methoxyestradiol (2-MeOE2),HIF1A+ctrl
+65,Maraviroc,CCR5+ctrl
+66,Aminoglutethimide ,CYP19A1+ctrl
+67,Vehicle,ctrl
+68,SRT3025 HCl,SIRT1+ctrl
+69,XAV-939,TNKS+ctrl
+70,UNC0379,ASH1L+ctrl
+71,Tucidinostat (Chidamide),HDAC8+ctrl
+72,Capecitabine ,TYMS+ctrl
+73,SGI-1776 free base,PIM1+ctrl
+74,Tranylcypromine (2-PCPA) HCl,MAOA+ctrl
+75,SNS-314,AURKA+ctrl
+76,Belinostat (PXD101),HDAC8+ctrl
+77,Sirtinol,SIRT1+ctrl
+78,Nilotinib (AMN-107),ABL1+ctrl
+79,GSK-LSD1 2HCl,KDM1A+ctrl
+80,BRD4770,ASH1L+ctrl
+81,Alvespimycin (17-DMAG) HCl,HSP90B1+ctrl
+82,Busulfan,NA
+83,ZM 447439,AURKA+ctrl
+84,Curcumin,NFKB1+HDAC8
+85,Veliparib (ABT-888),PARP1+ctrl
+86,Tie2 kinase inhibitor,TEK+ctrl
+87,MK-0752,NA
+88,EED226,EED+ctrl
+89,ITSA-1 (ITSA1),HDAC8+ctrl
+90,Cimetidine ,HRH1+ctrl
+91,"Tozasertib (VX-680, MK-0457)",AURKA+ctrl
+92,AMG-900,AURKA+ctrl
+93,Clevudine,NA
+94,Triamcinolone Acetonide,NR3C1+ctrl
+95,Dacinostat (LAQ824),HDAC8+ctrl
+96,Entacapone,ASH1L+ctrl
+97,Ofloxacin,TOP2A+ctrl
+98,Rigosertib (ON-01910),PLK1+ctrl
+99,GSK J1,KDM1A+ctrl
+100,ABT-737,BCL2+ctrl
+101,PCI-34051,HDAC8+ctrl
+102,Givinostat (ITF2357),HDAC8+ctrl
+103,Celecoxib,PTGS2+ctrl
+104,JNJ-26854165 (Serdemetan),TP53+ctrl
+105,Navitoclax (ABT-263),BCL2+ctrl
+106,Mercaptopurine (6-MP),HPRT1+ctrl
+107,INO-1001 (3-Aminobenzamide),PARP1+ctrl
+108,JNJ-7706621,AURKA+CDK1
+109,Pirarubicin,TOP2A+ctrl
+110,MC1568,HDAC8+ctrl
+111,Tazemetostat (EPZ-6438),ASH1L+ctrl
+112,Danusertib (PHA-739358),AURKA+ctrl
+113,Streptozotocin (STZ),NA
+114,Regorafenib (BAY 73-4506),RET+FLT1
+115,Pelitinib (EKB-569),EGFR+ctrl
+116,Quisinostat (JNJ-26481585) 2HCl,HDAC8+ctrl
+117,SRT1720 HCl,SIRT1+ctrl
+118,Momelotinib (CYT387),JAK2+ctrl
+119,Raltitrexed,TYMS+ctrl
+120,GSK1070916,AURKA+ctrl
+121,Vandetanib (ZD6474),FLT1+ctrl
+122,Ramelteon,MTNR1A+ctrl
+123,Tubastatin A HCl,HDAC8+ctrl
+124,Hesperadin,AURKA+ctrl
+125,UNC1999,ASH1L+ctrl
+126,Enzastaurin (LY317615),PRKCA+ctrl
+127,Ki16425,LPAR1+ctrl
+128,WP1066,JAK2+ctrl
+129,"Temsirolimus (CCI-779, NSC 683864)",MTOR+ctrl
+130,SL-327,MAP2K1+ctrl
+131,"Fluorouracil (5-Fluoracil, 5-FU)",TERT+ctrl
+132,Epothilone A,NA
+133,"Fedratinib (SAR302503, TG101348)",JAK2+ctrl
+134,Altretamine,NA
+135,Tacedinaline (CI994),HDAC8+ctrl
+136,Nintedanib (BIBF 1120),FGFR1+FLT1
+137,PFI-1 (PF-6405761),BET1+ctrl
+138,Andarine,AR+ctrl
+139,S-Ruxolitinib (INCB018424),JAK2+ctrl
+140,Trichostatin A (TSA),HDAC8+ctrl
+141,Lomustine,STMN4+ctrl
+142,M344,HDAC8+ctrl
+143,RG108,DNMT1+ctrl
+144,Panobinostat (LBH589),HDAC8+ctrl
+145,Resminostat,HDAC8+ctrl
+146,S3I-201,STAT3+ctrl
+147,Lapatinib (GW-572016) Ditosylate,EGFR+ERBB2
+148,CUDC-907,HDAC8+PIK3CA
+149,G007-LK,PARP1+ctrl
+150,AZD1480,JAK2+ctrl
+151,SB431542,TGFB1+ctrl
+152,Pracinostat (SB939),HDAC8+ctrl
+153,"Patupilone (EPO906, Epothilone B)",NA
+154,TMP195,HDAC8+ctrl
+155,FLLL32,JAK2+ctrl
+156,Linifanib (ABT-869),CSF1R+FLT1
+157,Lenalidomide (CC-5013),NA
+158,Decitabine,NA
+159,PF-3845,FAAH+ctrl
+160,Amisulpride,DRD1+ctrl
+161,Anacardic Acid,HAT1+ctrl
+162,Bisindolylmaleimide IX (Ro 31-8220 Mesylate),PRKCA+ctrl
+163,"Baricitinib (LY3009104, INCB028050)",JAK2+ctrl
+164,MLN8054,AURKA+ctrl
+165,AICAR (Acadesine),PRKAA2+ctrl
+166,Tofacitinib (CP-690550) Citrate,JAK2+ctrl
+167,Resveratrol,SIRT1+ctrl
+168,Thiotepa,NA
+169,Cediranib (AZD2171),FLT1+ctrl
+170,Roxadustat (FG-4592),HIF1A+ctrl
+171,Entinostat (MS-275),HDAC8+ctrl
+172,"Cerdulatinib (PRT062070, PRT2070)",JAK2+ctrl
+173,Zileuton,ALOX5+ctrl
+174,Costunolide,NA
+175,Mocetinostat (MGCD0103),HDAC8+ctrl
+176,UNC0631,ASH1L+ctrl
+177,Sorafenib Tosylate,RAF1+FLT1
+178,Bosutinib (SKI-606),SRC+ctrl
+179,ENMD-2076,AURKA+FLT1
+180,AT9283,AURKA+JAK2
+181,"Rucaparib (AG-014699,PF-01367338) phosphate",PARP1+ctrl
+182,AC480 (BMS-599626),EGFR+ERBB2
+183,AR-42,HDAC8+ctrl
+184,"Roscovitine (Seliciclib,CYC202)",CDK1+ctrl
+185,Fulvestrant,ESR1+ctrl
+186,"Luminespib (AUY-922, NVP-AUY922)",HSP90B1+ctrl
+187,Flavopiridol HCl,CDK1+ctrl
+188,YM155 (Sepantronium Bromide),BIRC5+ctrl

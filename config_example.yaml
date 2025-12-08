@@ -1,0 +1,77 @@
+# Example configuration file for Drug Response Prediction project
+
+# Directory paths (relative to project root)
+paths:
+  # Main directories
+  data_dir: "data"
+  results_dir: "results"
+  figures_dir: "figures"
+  resources_dir: "resources"
+  scripts_dir: "scripts"
+    
+  # Subdirectories
+  mcfarland_data_dir: "data/mcfarland_processed"
+  sciplex_data_dir: "data/sciplex_processed"
+  average_effect_predictions_dir: "data/average_effect_predictions"
+  no_effect_predictions_dir: "data/no_effect_predictions"
+  cpa_predictions_dir: "data/CPA_predictions"
+  gears_predictions_dir: "data/GEARS_predictions"
+  gears_noreg_predictions_dir: "data/GEARS_noreg_predictions"
+  scfoundation_predictions_dir: "data/scfoundation_predictions"
+  observed_pseudobulk_dir: "data/observed_pseudobulk"
+
+# Analysis parameters
+parameters:
+  # Data processing
+  min_cells_per_condition: 10
+  min_genes_per_cell: 200
+  min_cells_per_gene: 3
+  
+  # Feature selection
+  default_n_features: 1000
+  hvg_n_top_genes: 2000
+  
+  # Cross-validation
+  default_n_outer_splits: 5
+  default_n_inner_splits: 5
+  random_state: 42
+  
+  # Model parameters
+  elasticnet_alphas: [0.1, 1.0, 10.0]
+  elasticnet_l1_ratios: [0.0, 0.1, 0.5, 1.0]
+  elasticnet_max_iter: 1000
+  
+  # Drug sensitivity
+  sensitivity_threshold: 0.02
+  ic50_threshold: 1.0
+  
+  # Cell lines and datasets
+  sciplex_cell_lines: ["A549", "K562", "MCF7"]
+  mcfarland_tissue_types:
+    - "BREAST"
+    - "CENTRAL_NERVOUS_SYSTEM"
+    - "ENDOMETRIUM"
+    - "KIDNEY"
+    - "LARGE_INTESTINE"
+    - "LUNG"
+    - "OESOPHAGUS"
+    - "OVARY"
+    - "PANCREAS"
+    - "SKIN"
+    - "STOMACH"
+    - "THYROID"
+    - "UPPER_AERODIGESTIVE_TRACT"
+    - "URINARY_TRACT"
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/analysis.log"
+
+# File naming patterns
+file_patterns:
+  mcfarland_processed: "mcfarland_{tissue}_{cell_line}.h5ad"
+  sciplex_processed: "sciplex_{cell_line}.h5ad"
+  predictions: "{model}_{cell_line}_{condition_type}.csv"
+  average_effect: "average_effect_{cell_line}_{condition_type}.csv"

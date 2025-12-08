@@ -1,0 +1,14 @@
+dataset,drug,target
+Afatinib_expt10,Afatinib,EGFR+ctrl
+AZD5591_expt10,AZD5591,MCL1+ctrl
+Bortezomib_24hr_expt1,Bortezomib,PSMB5+ctrl
+Everolimus_expt10,Everolimus,MTOR+ctrl
+Idasanutlin_24hr_expt1,Idasanutlin,MDM2+ctrl
+JQ1_expt10,JQ1,BRD4+ctrl
+Prexasertib_expt10,Prexasertib,CHEK1+ctrl
+Taselisib_expt10,Taselisib,PIK3CA+ctrl
+Trametinib_24hr_expt1,Trametinib,MAP2K1+ctrl
+Dabrafenib_24hr_expt3,Dabrafenib,BRAF+ctrl
+Navitoclax_24hr_expt3,Navitoclax,BCL2+ctrl
+sgGPX4_2_expt2,sgGPX4,GPX4+ctrl
+sgOR2J2_expt2,sgOR2J2,OR2J2+ctrl

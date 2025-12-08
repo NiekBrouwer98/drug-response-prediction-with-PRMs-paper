@@ -1,0 +1,35 @@
+Bootstrap: docker
+From: condaforge/miniforge3:latest
+
+%files
+    environment.yml /environment.yml
+
+%post
+    # Update and install necessary packages
+    apt-get update && apt-get install -y tree time vim ncdu speedtest-cli build-essential
+
+    # Create a new Conda environment using the environment files.
+    mamba env create --quiet --file /environment.yml
+    
+    # Clean up
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+    mamba clean --all -y
+
+    # Now add the script to activate the Conda environment
+    echo '. "/opt/conda/etc/profile.d/conda.sh"' >> $APPTAINER_ENVIRONMENT
+    echo 'conda activate drug-response-prediction' >> $APPTAINER_ENVIRONMENT
+
+%help
+    This container provides a Python 3.10 environment with scientific computing
+    libraries including pandas, scikit-learn, matplotlib, seaborn, and more.
+    
+    Usage examples:
+    - Run a Python script: apptainer run drug-response-prediction.sif script.py
+    - Interactive Python: apptainer exec drug-response-prediction.sif python
+    - Jupyter notebook: apptainer exec drug-response-prediction.sif jupyter notebook
+    - Shell access: apptainer shell drug-response-prediction.sif
+
+%labels
+    Author NiekBrouwer
+    Version 1.0
+    Description Python environment with scientific computing libraries

@@ -1,0 +1,27 @@
+name: drug-response-prediction
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - torchvision
+  - conda-forge::scanpy
+  - conda-forge::local-attention
+  - conda-forge::dcor
+  - torchaudio
+  - pytorch
+  - conda-forge::einops
+  - conda-forge::omegaconf
+  - wandb
+  - conda-forge::tensordict
+  - anndata
+  - pandas
+  - matplotlib
+  - seaborn
+  - scikit-learn
+  - pyyaml
+  - numpy
+  - scipy
+  - pip:
+      - cell-gears
