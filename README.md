@@ -15,7 +15,7 @@ drug_response_prediction/
 │   ├── average_effect_predictions/# Average Effect Baseline model 
 │   ├── CPA_predictions/           # CPA model predictions
 │   ├── GEARS_predictions/         # GEARS model predictions
-│   ├── scfoundation_predictions/  # GEARS with scFoundation predictions
+│   ├── scfoundation_predictions/  # scFoundation predictions
 │   └── measured_pseudobulk/       # Measured gene expression data as pseudobulks
 ├── figures/                       # Generated figures and manuscript files
 ├── resources/                     # Reference data and annotations
