@@ -64,42 +64,6 @@ def collect_mcfarland_feature_importance():
     return feature_importance_pancancer, feature_importance_tissuemodels, feature_importance_treatmentmodels, feature_importance_means
 
 
-def collect_mcfarland_LOO_feature_importance():
-    lto_pre = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LTO_feature_importance_on_pre.pkl'),reset_index=True).assign(model='Pre')
-    lto_post = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LTO_feature_importance_on_post.pkl'), reset_index=True).assign(model='Post')
-    lto_lfc = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LTO_feature_importance_on_lfc.pkl'), reset_index=True).assign(model='Log(fold change)')
-
-    feature_importance_lto = pd.concat([lto_pre, lto_post, lto_lfc], ignore_index=True)
-    feature_importance_lto['condition'] = feature_importance_lto['condition'].map(lambda x: x.replace('tissue=', ''))
-    feature_importance_lto.columns = feature_importance_lto.columns.get_level_values(0)
-
-    feature_importance_lto = feature_importance_lto.pivot(index=['model','condition'], columns='feature', values='importance')
-
-    ldo_pre = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LDO_feature_importance_on_pre.pkl'),reset_index=True).assign(model='Pre')
-    ldo_post = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LDO_feature_importance_on_post.pkl'), reset_index=True).assign(model='Post')
-    ldo_lfc = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LDO_feature_importance_on_lfc.pkl'), reset_index=True).assign(model='Log(fold change)')
-
-    feature_importance_ldo = pd.concat([ldo_pre, ldo_post, ldo_lfc], ignore_index=True)
-    feature_importance_ldo['condition'] = feature_importance_ldo['condition'].map(lambda x: x.replace('condition=', ''))
-    feature_importance_ldo.columns = feature_importance_ldo.columns.get_level_values(0)
-    mcfarland_drug_to_pert = pd.read_csv(os.path.join(resources_dir, 'mcfarland_drug_to_perturbation.csv'))
-    feature_importance_ldo = pd.merge(feature_importance_ldo, mcfarland_drug_to_pert, left_on='condition', right_on='target', how='left')
-    feature_importance_ldo = feature_importance_ldo.drop(columns=['condition']).rename(columns={'drug':'condition'})
-
-    feature_importance_ldo = feature_importance_ldo.pivot(index=['model','condition'], columns='feature', values='importance')
-
-    loo_pre = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LOO_feature_importance_on_pre.pkl'), reset_index=True).assign(model='Pre')
-    loo_post = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LOO_feature_importance_on_post.pkl'), reset_index=True).assign(model='Post')
-    loo_lfc = read_pickle(os.path.join(results_dir, 'mcfarland_regression_LOO_feature_importance_on_lfc.pkl'), reset_index=True).assign(model='Log(fold change)')
-
-    feature_importance_loo = pd.concat([loo_pre, loo_post, loo_lfc], ignore_index=True)
-    feature_importance_loo.columns = feature_importance_loo.columns.get_level_values(0)
-
-    feature_importance_loo = feature_importance_loo.pivot(index=['model','condition'], columns='feature', values='importance')
-
-    return feature_importance_lto, feature_importance_ldo, feature_importance_loo
-
-
 def get_mcfarland_feature_importance():
     tissue_models = ['BREAST', 'CENTRAL_NERVOUS_SYSTEM', 'KIDNEY', 'LARGE_INTESTINE', 'LUNG', 'OESOPHAGUS', 'PANCREAS', 'SKIN', 'THYROID', 'URINARY_TRACT']
     treatment_models = ['Afatinib', 'Dabrafenib', 'Idasanutlin', 'Taselisib', 'Trametinib']
@@ -179,6 +143,7 @@ def get_sciplex_feature_importance():
     with open(os.path.join(results_dir,'sciplex_feature_importances.pkl'), 'wb') as f:
         pkl.dump(all_feature_importance, f)
 
+    return all_feature_importance
 
 def perform_mcfarland_GSEA(feature_importance):
     for column_name in feature_importance.iloc[:,1:].columns:
@@ -263,9 +228,7 @@ def main():
     feature_importance_ordered = feature_importance_ordered[feature_importance_ordered['model']=='Log(fold change)'].drop(columns=['model']).set_index('condition').T.reset_index()
     perform_mcfarland_GSEA(feature_importance_ordered)
     
-    get_sciplex_feature_importance()
-    with open(os.path.join(results_dir, 'sciplex_feature_importances.pkl'), 'rb') as f:
-        sciplex_feature_importance = pkl.load(f)
+    sciplex_feature_importance = get_sciplex_feature_importance()
     perform_sciplex_GSEA(sciplex_feature_importance)
 
 
