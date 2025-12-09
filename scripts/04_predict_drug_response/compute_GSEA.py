@@ -37,9 +37,9 @@ def read_pickle(file_path, reset_index=False):
 
 def collect_mcfarland_feature_importance():
     mcfarland_drug_to_pert = pd.read_csv(os.path.join(resources_dir, 'mcfarland_drug_to_perturbation.csv'))
-    pancancer_feature_importance = pd.read_csv(os.path.join(results_dir, 'mcfarland_regression_1000_features_feature_importance.csv'), index_col=0)
-    pancancer_feature_importance = pancancer_feature_importance.assign(condition='Full McFarland dataset')
-    pancancer_feature_importance = pancancer_feature_importance.pivot(index=['model','condition','split'], columns='feature', values='importance')
+    feature_importance_pancancer = pd.read_csv(os.path.join(results_dir, 'mcfarland_regression_1000_features_feature_importance.csv'), index_col=0)
+    feature_importance_pancancer = feature_importance_pancancer.assign(condition='Full McFarland dataset')
+    feature_importance_pancancer = feature_importance_pancancer.pivot(index=['model','condition','split'], columns='feature', values='importance')
 
     treatmentmodels_pre = read_pickle(os.path.join(results_dir, 'treatmentmodels_regression_feature_importance_on_pre.pkl')).assign(model='Pre')
     treatmentmodels_post = read_pickle(os.path.join(results_dir, 'treatmentmodels_regression_feature_importance_on_post.pkl')).assign(model='Post')
@@ -57,12 +57,11 @@ def collect_mcfarland_feature_importance():
     feature_importance_tissuemodels = pd.concat([tissuemodels_pre, tissuemodels_post, tissuemodels_lfc], ignore_index=True)
     feature_importance_tissuemodels = feature_importance_tissuemodels.pivot(index=['model','condition','split'], columns='feature', values='importance')
 
-    feature_importance = pd.concat([pancancer_feature_importance, feature_importance_tissuemodels, feature_importance_treatmentmodels]).fillna(0)
+    feature_importance = pd.concat([feature_importance_pancancer, feature_importance_tissuemodels, feature_importance_treatmentmodels]).fillna(0)
 
     feature_importance_means = feature_importance.reset_index().groupby(['model', 'condition']).mean().reset_index().drop(columns=['split'])
-    feature_importance_means.to_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means.csv'))
 
-    return pancancer_feature_importance, feature_importance_tissuemodels, feature_importance_treatmentmodels, feature_importance_means
+    return feature_importance_pancancer, feature_importance_tissuemodels, feature_importance_treatmentmodels, feature_importance_means
 
 
 def collect_mcfarland_LOO_feature_importance():
@@ -105,32 +104,25 @@ def get_mcfarland_feature_importance():
     tissue_models = ['BREAST', 'CENTRAL_NERVOUS_SYSTEM', 'KIDNEY', 'LARGE_INTESTINE', 'LUNG', 'OESOPHAGUS', 'PANCREAS', 'SKIN', 'THYROID', 'URINARY_TRACT']
     treatment_models = ['Afatinib', 'Dabrafenib', 'Idasanutlin', 'Taselisib', 'Trametinib']
 
-    pancancer_feature_importance, feature_importance_tissuemodels, feature_importance_treatmentmodels, feature_importance_means = collect_mcfarland_feature_importance()
+    feature_importance_pancancer, feature_importance_tissuemodels, feature_importance_treatmentmodels, feature_importance_means = collect_mcfarland_feature_importance()
 
-    top_features = pancancer_feature_importance.columns.tolist()
+    top_features = feature_importance_pancancer.columns.tolist()
     top_features = list(set(top_features).intersection(set(feature_importance_tissuemodels.columns.tolist() + feature_importance_treatmentmodels.columns.tolist()))) + ['condition', 'model']
     print(len(top_features))
-    feature_importance_means = pd.read_csv(os.path.join(results_dir,'mcfarland_regression_feature_importance_means.csv'))
     feature_importance_means = feature_importance_means.loc[:, top_features]
+    feature_importance_means.to_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means.csv'))
+
     feature_sum = feature_importance_means.reset_index()[['condition', 'model']]
     feature_sum['sum'] = feature_importance_means.reset_index(drop=True).sum(numeric_only=True).reset_index(drop=True)
     feature_sum = feature_sum.sort_values('sum',ascending=True, key=abs)
 
     zero_feature_conditions = feature_sum[feature_sum['sum']==0]['condition'].tolist()
-
     good_performance_models = tissue_models + treatment_models + ['Full McFarland dataset']
 
     feature_importance_means = feature_importance_means[~feature_importance_means['condition'].isin(zero_feature_conditions)]
     feature_importance_means = feature_importance_means[feature_importance_means['condition'].isin(good_performance_models)]
     feature_importance_means.to_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means_filtered.csv'))
-    feature_importance_lto, feature_importance_ldo, feature_importance_loo = collect_mcfarland_LOO_feature_importance()
-    top_features = list(set(top_features).intersection(set(feature_importance_lto.columns.tolist() + feature_importance_ldo.columns.tolist()))) + ['condition', 'model']
-    feature_importance_lto = feature_importance_lto.reset_index().loc[:, top_features]
-    feature_importance_lto['condition'] = 'LTO_' + feature_importance_lto['condition'].astype(str)
-    feature_importance_ldo = feature_importance_ldo.reset_index().loc[:, top_features]
-    feature_importance_ldo['condition'] = 'LDO_' + feature_importance_ldo['condition'].astype(str)
-    all_feature_importance = pd.concat([feature_importance_means, feature_importance_lto, feature_importance_ldo], ignore_index=True)
-    all_feature_importance.to_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_all_models_filtered.csv'))
+
 
 def get_sciplex_feature_importance():
     sciplex_feature_importance = []
@@ -149,7 +141,7 @@ def get_sciplex_feature_importance():
     all_feature_importance = {'post': sciplex_post_feature_importance,
                         'lfc': sciplex_lfc_feature_importance}
 
-    models = ['no_effect', 'average_effect','GEARS', 'GEARS_noreg', 'CPA', 'scFoundation']
+    models = ['no_effect', 'average_effect', 'GEARS', 'GEARS_noreg', 'CPA', 'scFoundation']
 
     post_df = []
     lfc_df = []
@@ -266,8 +258,7 @@ def perform_sciplex_GSEA(feature_importance):
 
 def main():
     get_mcfarland_feature_importance()
-    feature_importance_means = pd.read_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_all_models_filtered.csv'))
-
+    feature_importance_means = pd.read_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means_filtered.csv'))
     feature_importance_ordered = feature_importance_means.loc[:, ~feature_importance_means.columns.str.contains('condition_')]
     feature_importance_ordered = feature_importance_ordered[feature_importance_ordered['model']=='Log(fold change)'].drop(columns=['model']).set_index('condition').T.reset_index()
     perform_mcfarland_GSEA(feature_importance_ordered)

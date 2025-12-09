@@ -1081,32 +1081,32 @@ if __name__ == '__main__':
         # Run prediction analyses
         logger.info("Starting drug sensitivity prediction pipeline...")
 
-        # logger.info("Predicting with sciplex profiles...")
-        # predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=False, two_part_bool=True, results_file='sciplex_regression_predictions_CV_twostep_AUC')
-        # predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=True, two_part_bool=True, results_file='sciplex_regression_predictions_selftrained_CV_twostep_AUC')
+        logger.info("Predicting with sciplex profiles...")
+        predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=False, two_part_bool=True, results_file='sciplex_regression_predictions_CV_twostep_AUC')
+        predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=True, two_part_bool=True, results_file='sciplex_regression_predictions_selftrained_CV_twostep_AUC')
 
-        # logger.info("Running per-treatment models...")
-        # predictions_McFarland_per_treatment()
+        logger.info("Running per-treatment models...")
+        predictions_McFarland_per_treatment()
         
-        # logger.info("Running per-tissue models...")
-        # predictions_McFarland_per_tissue()
+        logger.info("Running per-tissue models...")
+        predictions_McFarland_per_tissue()
 
         logger.info("Running full McFarland models...")
         predictions_McFarland()
         
-        # logger.info("Running seen-seen analysis...")
-        # predictions_McFarland_seen_seen()
+        logger.info("Running seen-seen analysis...")
+        predictions_McFarland_seen_seen()
         
-        # logger.info("Running leave-drug-out analysis...")
-        # predictions_McFarland_LDO()
+        logger.info("Running leave-drug-out analysis...")
+        predictions_McFarland_LDO()
         
-        # logger.info("Running leave-tissue-out analysis...")
-        # predictions_McFarland_LTO()
+        logger.info("Running leave-tissue-out analysis...")
+        predictions_McFarland_LTO()
         
-        # logger.info("Running leave-one-out analysis...")
-        # predictions_McFarland_LOO()
+        logger.info("Running leave-one-out analysis...")
+        predictions_McFarland_LOO()
 
-        # logger.info("Drug sensitivity prediction pipeline completed successfully")
+        logger.info("Drug sensitivity prediction pipeline completed successfully")
         
     except Exception as e:
         logger.error(f"Error in drug sensitivity prediction: {str(e)}")
