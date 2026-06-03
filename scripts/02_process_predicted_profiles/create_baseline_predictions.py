@@ -20,41 +20,127 @@ data_dir = str(config.DATA_DIR)
 # Ensure directories exist
 ensure_directories_exist(home_dir,data_dir)
 
-def create_baseline_predictions():
-    for cell_line in ['mcf7','k562','a549']:
-        observed_pre_treatment = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_pre_{cell_line}.csv'), index_col=0)
+def _save_baseline_profiles(
+    observed_pre_treatment: pd.DataFrame,
+    observed_post_treatment: pd.DataFrame,
+    observed_lfc_treatment: pd.DataFrame,
+    no_effect_path: str,
+    average_post_path: str,
+    average_lfc_path: str,
+) -> None:
+    """Create no-effect (pre) and average-effect (mean post/LFC) baseline profiles."""
+    pair_cols = ['cell_type', 'condition']
+    if 'tissue' in observed_post_treatment.columns:
+        pair_cols.append('tissue')
+    all_pairs = observed_post_treatment[pair_cols].drop_duplicates().reset_index(drop=True)
+
+    meta_cols = ['condition']
+    if 'tissue' in observed_pre_treatment.columns:
+        meta_cols.append('tissue')
+
+    mean_observed_pre_treatment = (
+        observed_pre_treatment.drop(columns=meta_cols, errors='ignore')
+        .groupby(['cell_type'])
+        .mean()
+        .reset_index()
+    )
+    mean_observed_post_treatment = (
+        observed_post_treatment.drop(columns=meta_cols, errors='ignore')
+        .groupby(['cell_type'])
+        .mean()
+        .reset_index()
+    )
+    mean_observed_lfc_treatment = (
+        observed_lfc_treatment.drop(columns=meta_cols, errors='ignore')
+        .groupby(['cell_type'])
+        .mean()
+        .reset_index()
+    )
+
+    mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, all_pairs, on=['cell_type'], how='left')
+    mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, all_pairs, on=['cell_type'], how='left')
+    mean_observed_lfc_treatment = pd.merge(mean_observed_lfc_treatment, all_pairs, on=['cell_type'], how='left')
+
+    # No effect predictions are pre-treatment profiles
+    mean_observed_pre_treatment.to_csv(no_effect_path, index=False)
+
+    # Average effect predictions are post-treatment profiles
+    mean_observed_post_treatment.to_csv(average_post_path, index=False)
+    mean_observed_lfc_treatment.to_csv(average_lfc_path, index=False)
+
+
+def create_sciplex_baseline_predictions() -> None:
+    for cell_line in ['mcf7', 'k562', 'a549']:
+        observed_pre_treatment = pd.read_csv(
+            os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_pre_{cell_line}.csv'),
+            index_col=0,
+        )
         observed_pre_treatment['cell_type'] = cell_line.upper()
-        mean_observed_pre_treatment = observed_pre_treatment.drop(columns=['condition']).groupby(['cell_type']).mean().reset_index()
 
-        observed_post_treatment = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
+        observed_post_treatment = pd.read_csv(
+            os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'),
+            index_col=0,
+        )
         observed_post_treatment['cell_type'] = cell_line.upper()
-        mean_observed_post_treatment = observed_post_treatment.drop(columns=['condition']).groupby(['cell_type']).mean().reset_index()
 
-        observed_lfc_treatment = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_LFC_{cell_line}.csv'), index_col=0)
+        observed_lfc_treatment = pd.read_csv(
+            os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_LFC_{cell_line}.csv'),
+            index_col=0,
+        )
         observed_lfc_treatment['cell_type'] = cell_line.upper()
-        mean_observed_lfc_treatment = observed_lfc_treatment.drop(columns=['condition']).groupby(['cell_type']).mean().reset_index()
 
-        all_pairs = observed_post_treatment[['cell_type','condition']].reset_index(drop=True).drop_duplicates()
+        _save_baseline_profiles(
+            observed_pre_treatment,
+            observed_post_treatment,
+            observed_lfc_treatment,
+            os.path.join(data_dir, 'no_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'),
+            os.path.join(data_dir, 'average_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'),
+            os.path.join(data_dir, 'average_effect_predictions', f'sciplex_mean_LFC_{cell_line}.csv'),
+        )
+        logger.info(f"Baseline predictions created for sciplex {cell_line}")
 
-        mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment,all_pairs, on=['cell_type'], how='left')
-        mean_observed_post_treatment = pd.merge(mean_observed_post_treatment,all_pairs, on=['cell_type'], how='left')
-        mean_observed_lfc_treatment = pd.merge(mean_observed_lfc_treatment,all_pairs, on=['cell_type'], how='left')
 
-        # No effect predictions are pre-treatment profiles
-        mean_observed_pre_treatment.to_csv(os.path.join(data_dir, 'no_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'), index=False)
+def create_mcfarland_baseline_predictions() -> None:
+    suffix = 'all_celllines'
+    observed_pre_treatment = pd.read_csv(
+        os.path.join(data_dir, 'observed_pseudobulk', f'mcfarland_mean_pre_{suffix}.csv'),
+        index_col=0,
+    )
+    observed_post_treatment = pd.read_csv(
+        os.path.join(data_dir, 'observed_pseudobulk', f'mcfarland_mean_post_{suffix}.csv'),
+        index_col=0,
+    )
+    observed_lfc_treatment = pd.read_csv(
+        os.path.join(data_dir, 'observed_pseudobulk', f'mcfarland_mean_LFC_{suffix}.csv'),
+        index_col=0,
+    )
 
-        # Average effect predictions are post-treatment profiles
-        mean_observed_post_treatment.to_csv(os.path.join(data_dir, 'average_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'), index=False)
-        mean_observed_lfc_treatment.to_csv(os.path.join(data_dir, 'average_effect_predictions', f'sciplex_mean_LFC_{cell_line}.csv'), index=False)
-        logger.info(f"Baseline predictions created for {cell_line}")
+    _save_baseline_profiles(
+        observed_pre_treatment,
+        observed_post_treatment,
+        observed_lfc_treatment,
+        os.path.join(data_dir, 'no_effect_predictions', f'mcfarland_mean_post_{suffix}.csv'),
+        os.path.join(data_dir, 'average_effect_predictions', f'mcfarland_mean_post_{suffix}.csv'),
+        os.path.join(data_dir, 'average_effect_predictions', f'mcfarland_mean_LFC_{suffix}.csv'),
+    )
+    logger.info("Baseline predictions created for mcfarland")
+
+
+def create_baseline_predictions() -> None:
+    create_sciplex_baseline_predictions()
+    create_mcfarland_baseline_predictions()
 
 if __name__ == '__main__':
     log_script_start(__file__, logger)
+    required_pseudobulks = [
+        *(f'sciplex_mean_post_{cell_line}.csv' for cell_line in ['mcf7', 'a549', 'k562']),
+        'mcfarland_mean_post_all_celllines.csv',
+    ]
     try:
-        for cell_line in ['mcf7','a549','k562']:
-            _ = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
+        for filename in required_pseudobulks:
+            _ = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', filename), index_col=0)
     except FileNotFoundError:
-        logger.error(f"First run create_pseudobulk.py to create the pseudobulks.")
+        logger.error("First run create_pseudobulk.py to create the pseudobulks.")
         raise
     logger.info("Creating baseline predictions...")
     try:

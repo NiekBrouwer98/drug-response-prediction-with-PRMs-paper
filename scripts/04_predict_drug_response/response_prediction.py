@@ -238,7 +238,7 @@ def out_of_distribution_elasticnet(df, selected_features, condition):
     outcomes = []
     feature_importance_dict = {}
 
-    for combo in unique_combinations:
+    for split_num, combo in enumerate(unique_combinations, start=1):
 
         # Construct test mask with OR logic
         test_mask = pd.Series(False, index=df.index)
@@ -270,7 +270,7 @@ def out_of_distribution_elasticnet(df, selected_features, condition):
 
         # Handle degenerate case
         if (y_train.nunique() == 1) & (y_test.nunique() == 1):
-            outer_scores.append(pd.DataFrame({'accuracy': [1], 'test_condition': [test_condition_name]}))
+            outer_scores.append(pd.DataFrame({'accuracy': [1], 'test_condition': [test_condition_name], 'split': [split_num]}))
             continue
 
         classification_bool = y_test.nunique() < 3
@@ -317,9 +317,9 @@ def out_of_distribution_elasticnet(df, selected_features, condition):
             feature_importance = pd.Series(index=X_train.columns, data=best_model.coef_, name=test_condition_name)
 
         # Store results
-        outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [test_condition_name]}))
+        outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [test_condition_name], 'split': [split_num]}))
         split_outcomes = pd.concat([identifiers, pd.DataFrame({'pred': y_pred, 'true': y_test})],axis=1)
-        outcomes.append(split_outcomes.assign(test_condition=test_condition_name))
+        outcomes.append(split_outcomes.assign(test_condition=test_condition_name).assign(split=split_num))
         feature_importance_dict[test_condition_name] = feature_importance
 
         print(f"Outer Fold accuracy: {outer_acc:.4f} for {test_condition_name}")
@@ -327,12 +327,12 @@ def out_of_distribution_elasticnet(df, selected_features, condition):
     if outer_scores:
         outer_scores = pd.concat(outer_scores, ignore_index=True)
     else:
-        outer_scores = pd.DataFrame(columns=['accuracy', 'test_condition'])
+        outer_scores = pd.DataFrame(columns=['accuracy', 'test_condition', 'split'])
 
     if outcomes:
         outcomes = pd.concat(outcomes, ignore_index=True)
     else:
-        outcomes = pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'test_condition'])
+        outcomes = pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'test_condition', 'split'])
 
     return outer_scores, outcomes, feature_importance_dict
 
@@ -360,7 +360,7 @@ def within_distribution_elasticnet(df, selected_features, condition1, condition2
     outcomes = []
     feature_importance_dict = {}
 
-    for combo in unique_combinations:
+    for split_num, combo in enumerate(unique_combinations, start=1):
         val1, val2 = combo
         test_condition_name = f"{condition1}={val1} AND {condition2}={val2}"
         print(f"Evaluating {test_condition_name}")
@@ -385,7 +385,7 @@ def within_distribution_elasticnet(df, selected_features, condition1, condition2
         
         # Handle degenerate case
         if (y_train.nunique() == 1) & (y_test.nunique() == 1):
-            outer_scores.append(pd.DataFrame({'accuracy': [1], 'test_condition': [test_condition_name]}))
+            outer_scores.append(pd.DataFrame({'accuracy': [1], 'test_condition': [test_condition_name], 'split': [split_num]}))
             continue
 
         param_grid = {
@@ -408,9 +408,9 @@ def within_distribution_elasticnet(df, selected_features, condition1, condition2
         feature_importance = pd.Series(index=X_train.columns, data=best_model.coef_, name=test_condition_name)
 
         # Store results
-        outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [test_condition_name]}))
+        outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [test_condition_name], 'split': [split_num]}))
         split_outcomes = pd.concat([identifiers, pd.DataFrame({'pred': y_pred, 'true': y_test})],axis=1)
-        outcomes.append(split_outcomes.assign(test_condition=test_condition_name))
+        outcomes.append(split_outcomes.assign(test_condition=test_condition_name).assign(split=split_num))
         feature_importance_dict[test_condition_name] = feature_importance
 
         print(f"Outer Fold accuracy: {outer_acc:.4f} for {test_condition_name}")
@@ -418,12 +418,12 @@ def within_distribution_elasticnet(df, selected_features, condition1, condition2
     if outer_scores:
         outer_scores = pd.concat(outer_scores, ignore_index=True)
     else:
-        outer_scores = pd.DataFrame(columns=['accuracy', 'test_condition'])
+        outer_scores = pd.DataFrame(columns=['accuracy', 'test_condition', 'split'])
 
     if outcomes:
         outcomes = pd.concat(outcomes, ignore_index=True)
     else:
-        outcomes = pd.DataFrame(columns=['pred', 'true', 'test_condition'])
+        outcomes = pd.DataFrame(columns=['pred', 'true', 'test_condition', 'split'])
 
     return outer_scores, outcomes, feature_importance_dict
 
@@ -448,7 +448,7 @@ def prediction_pipeline(df_with_y, df_for_feature_selection,label,result_label='
 def predictions_McFarland(n_features=1000, feature_subset=[]):
     print(f'Performing predictions with {n_features} features')
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
@@ -484,7 +484,7 @@ def predictions_McFarland(n_features=1000, feature_subset=[]):
 
 def predictions_McFarland_per_treatment(n_features=1000, outersplits=5):
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
@@ -549,7 +549,7 @@ def predictions_McFarland_per_treatment(n_features=1000, outersplits=5):
 
 def predictions_McFarland_per_tissue(n_features=1000, outersplits=5):
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
@@ -612,42 +612,325 @@ def predictions_McFarland_per_tissue(n_features=1000, outersplits=5):
     with open(os.path.join(results_dir,'tissuemodels_regression_feature_importance_on_lfc.pkl'), "wb") as f:
         pickle.dump(feature_importance_lfc, f)
 
+def _mcfarland_scenario_cv(df_with_y, selected_features, scenario='seen_seen', n_folds=5, random_state=1):
+    """
+    5-fold CV evaluators for McFarland scenario analyses.
+    Scenarios:
+      - seen_seen
+      - unseen_drug_seen_tissue
+      - seen_drug_unseen_tissue
+      - unseen_drug_unseen_tissue
+    """
+    n_input = len(df_with_y)
+    n_features_requested = len(selected_features)
+    _meta_cols = [c for c in ('y', 'tissue', 'cell_line', 'condition') if c in df_with_y.columns]
+    df_with_y = df_with_y.reset_index(drop=True)
+    if _meta_cols:
+        n_before_meta_na = len(df_with_y)
+        df_with_y = df_with_y.dropna(axis=0, subset=_meta_cols)
+        if len(df_with_y) != n_before_meta_na:
+            logger.info(
+                "_mcfarland_scenario_cv: dropped %d/%d rows with NaN in metadata columns %s (not gene-wide dropna)",
+                n_before_meta_na - len(df_with_y),
+                n_before_meta_na,
+                _meta_cols,
+            )
+    else:
+        df_with_y = df_with_y.dropna(axis=0)
+        logger.warning("_mcfarland_scenario_cv: no y/tissue/cell_line/condition in frame; applied full dropna")
+
+    selected_features = list(set(selected_features).intersection(set(df_with_y.columns)))
+    rng = np.random.default_rng(random_state)
+
+    logger.info(
+        "_mcfarland_scenario_cv: scenario=%s rows_in=%d rows_after_meta_dropna=%d features_requested=%d features_after_col_intersection=%d n_folds=%d",
+        scenario,
+        n_input,
+        len(df_with_y),
+        n_features_requested,
+        len(selected_features),
+        n_folds,
+    )
+
+    if len(selected_features) == 0:
+        logger.error(
+            "_mcfarland_scenario_cv: no selected_features intersect df columns (df columns sample: %s)",
+            list(df_with_y.columns[:24]),
+        )
+        return (
+            pd.DataFrame(columns=['accuracy', 'test_condition', 'split']),
+            pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'test_condition', 'split']),
+            {}
+        )
+
+    tissues = sorted(df_with_y['tissue'].drop_duplicates().tolist())
+    conditions = sorted(df_with_y['condition'].drop_duplicates().tolist())
+    shuffled_tissues = tissues.copy()
+    shuffled_conditions = conditions.copy()
+    rng.shuffle(shuffled_tissues)
+    rng.shuffle(shuffled_conditions)
+    tissue_folds = np.array_split(np.array(shuffled_tissues, dtype=object), n_folds)
+    condition_folds = np.array_split(np.array(shuffled_conditions, dtype=object), n_folds)
+
+    # used for seen_seen
+    fold_id = np.full(len(df_with_y), fill_value=-1, dtype=int)
+    if scenario == 'seen_seen':
+        for tissue in tissues:
+            if pd.isna(tissue):
+                continue
+            idx = df_with_y.index[df_with_y['tissue'] == tissue].to_numpy()
+            order = idx.copy()
+            if len(order) > n_folds:
+                rng.shuffle(order)
+            fold_id[order] = np.arange(len(order)) % n_folds
+        # Rows with missing tissue never match `tissue == np.nan`; without this, fold_id stays -1
+        # and every fold is skipped (empty CSVs with headers only).
+        unassigned = fold_id < 0
+        if unassigned.any():
+            logger.warning(
+                "_mcfarland_scenario_cv seen_seen: %d/%d rows had no tissue fold assignment; "
+                "assigning folds by shuffled row index.",
+                int(unassigned.sum()),
+                len(df_with_y),
+            )
+            idx_unassigned = df_with_y.index[unassigned].to_numpy()
+            order = idx_unassigned.copy()
+            if len(order) > n_folds:
+                rng.shuffle(order)
+            fold_id[order] = np.arange(len(order)) % n_folds
+
+    param_grid = {
+        'elasticnet__alpha': [0.1, 1.0, 10.0],
+        'elasticnet__l1_ratio': [0.0, 0.1, 0.5, 1.0]
+    }
+
+    outer_scores = []
+    outcomes = []
+    feature_importance_dict = {}
+    skip_reasons: list[str] = []
+
+    for fold_idx in range(n_folds):
+        if scenario == 'seen_seen':
+            test_mask = fold_id == fold_idx
+            train_mask = ~test_mask
+        elif scenario == 'unseen_drug_seen_tissue':
+            test_conditions = condition_folds[fold_idx].tolist()
+            test_mask = df_with_y['condition'].isin(test_conditions)
+            train_mask = ~test_mask
+        elif scenario == 'seen_drug_unseen_tissue':
+            test_tissues = tissue_folds[fold_idx].tolist()
+            test_mask = df_with_y['tissue'].isin(test_tissues)
+            train_mask = ~test_mask
+        elif scenario == 'unseen_drug_unseen_tissue':
+            test_tissues = tissue_folds[fold_idx].tolist()
+            test_conditions = condition_folds[fold_idx].tolist()
+            test_mask = df_with_y['tissue'].isin(test_tissues) & df_with_y['condition'].isin(test_conditions)
+            train_mask = (~df_with_y['tissue'].isin(test_tissues)) & (~df_with_y['condition'].isin(test_conditions))
+        else:
+            raise ValueError(f"Unknown scenario: {scenario}")
+
+        n_test = int(test_mask.sum())
+        n_train = int(train_mask.sum())
+        if n_test == 0 or n_train < 2:
+            skip_reasons.append(
+                f"fold={fold_idx} scenario={scenario} n_test={n_test} n_train={n_train} (need test>=1 and train>=2)"
+            )
+            logger.info("_mcfarland_scenario_cv skip: %s", skip_reasons[-1])
+            continue
+
+        X_train = df_with_y.loc[train_mask].copy()
+        X_test = df_with_y.loc[test_mask].copy()
+
+        y_train = X_train['y'].astype(float)
+        y_test = X_test['y'].astype(float).reset_index(drop=True)
+        X_train = X_train.drop(columns=['y'])
+        X_test = X_test.drop(columns=['y'])
+
+        identifiers = X_test[['tissue', 'cell_line', 'condition']].reset_index(drop=True)
+        X_train = X_train[selected_features]
+        X_test = X_test[selected_features]
+        X_train = X_train.drop(columns=['tissue', 'cell_line', 'condition']).astype(float)
+        X_test = X_test.drop(columns=['tissue', 'cell_line', 'condition']).astype(float)
+        X_train = X_train.fillna(0.0)
+        X_test = X_test.fillna(0.0)
+
+        if X_train.shape[0] < 2 or X_test.shape[0] < 1:
+            skip_reasons.append(
+                f"fold={fold_idx} post-mask shapes train={X_train.shape} test={X_test.shape}"
+            )
+            logger.info("_mcfarland_scenario_cv skip: %s", skip_reasons[-1])
+            continue
+
+        cv_folds = min(5, X_train.shape[0])
+        if cv_folds < 2:
+            skip_reasons.append(f"fold={fold_idx} cv_folds={cv_folds} (need >=2 inner CV folds)")
+            logger.info("_mcfarland_scenario_cv skip: %s", skip_reasons[-1])
+            continue
+
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('elasticnet', ElasticNet(max_iter=1000))
+        ])
+        grid_search = GridSearchCV(pipeline, param_grid, cv=cv_folds)
+        try:
+            grid_search.fit(X_train, y_train)
+        except Exception as exc:
+            logger.exception(
+                "_mcfarland_scenario_cv: GridSearchCV failed fold=%d scenario=%s train_shape=%s n_features=%d: %s",
+                fold_idx,
+                scenario,
+                X_train.shape,
+                X_train.shape[1],
+                exc,
+            )
+            skip_reasons.append(f"fold={fold_idx} GridSearchCV error: {exc}")
+            continue
+        y_pred = grid_search.predict(X_test)
+        best_model = grid_search.best_estimator_.named_steps['elasticnet']
+        outer_acc = np.sqrt(mean_squared_error(y_test, y_pred))
+
+        fold_name = f'fold={fold_idx}'
+        feature_importance_dict[fold_name] = pd.Series(index=X_train.columns, data=best_model.coef_, name=fold_name)
+
+        split_outcomes = pd.concat([identifiers, pd.DataFrame({'pred': y_pred, 'true': y_test})], axis=1)
+        if scenario == 'seen_seen':
+            split_outcomes['test_condition'] = (
+                'condition=' + split_outcomes['condition'].astype(str) + ' AND tissue=' + split_outcomes['tissue'].astype(str)
+            )
+            outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [fold_name], 'split': [fold_idx]}))
+        elif scenario == 'unseen_drug_seen_tissue':
+            split_outcomes['test_condition'] = 'condition=' + split_outcomes['condition'].astype(str)
+            outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [fold_name], 'split': [fold_idx]}))
+        elif scenario == 'seen_drug_unseen_tissue':
+            split_outcomes['test_condition'] = 'tissue=' + split_outcomes['tissue'].astype(str)
+            outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'test_condition': [fold_name], 'split': [fold_idx]}))
+        else:
+            split_outcomes['test_condition'] = (
+                'tissue=' + split_outcomes['tissue'].astype(str) + ' OR condition=' + split_outcomes['condition'].astype(str)
+            )
+            # per-combination scores so downstream parsing remains compatible
+            for tc, sub in split_outcomes.groupby('test_condition'):
+                if sub.shape[0] < 2:
+                    acc_val = 0.0
+                else:
+                    acc_val = np.sqrt(mean_squared_error(sub['true'], sub['pred']))
+                outer_scores.append(pd.DataFrame({'accuracy': [acc_val], 'test_condition': [tc], 'split': [fold_idx]}))
+
+        outcomes.append(split_outcomes.assign(split=fold_idx))
+        logger.info(
+            "_mcfarland_scenario_cv ok: fold=%d scenario=%s RMSE_sqrt=%.4f n_train=%d n_test=%d n_feat=%d",
+            fold_idx,
+            scenario,
+            outer_acc,
+            X_train.shape[0],
+            X_test.shape[0],
+            X_train.shape[1],
+        )
+
+    logger.info(
+        "_mcfarland_scenario_cv summary: scenario=%s folds_completed=%d folds_skipped=%d",
+        scenario,
+        len(outer_scores),
+        len(skip_reasons),
+    )
+
+    if len(df_with_y) > 0 and not outer_scores:
+        logger.warning(
+            "_mcfarland_scenario_cv produced no outer scores. Skip reasons (up to 20): %s",
+            skip_reasons[:20],
+        )
+
+    if outer_scores:
+        outer_scores = pd.concat(outer_scores, ignore_index=True)
+    else:
+        outer_scores = pd.DataFrame(columns=['accuracy', 'test_condition', 'split'])
+
+    if outcomes:
+        outcomes = pd.concat(outcomes, ignore_index=True)
+    else:
+        outcomes = pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'test_condition', 'split'])
+
+    return outer_scores, outcomes, feature_importance_dict
+
 def predictions_McFarland_seen_seen():
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_LFC = pd.merge(mean_observed_LFC, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
 
+    if 'cell_line' in mean_observed_pre_treatment.columns and 'condition' in mean_observed_pre_treatment.columns:
+        obs_pairs = set(zip(mean_observed_pre_treatment['cell_line'], mean_observed_pre_treatment['condition']))
+        sens_pairs = set(zip(cellline_sensitivity_info['cell_line'], cellline_sensitivity_info['target']))
+        only_obs = obs_pairs - sens_pairs
+        only_sens = sens_pairs - obs_pairs
+        logger.info(
+            "McFarland merge key sets: unique (cell_line, condition) in pre=%d; (cell_line, target) in sensitivity=%d; "
+            "in_obs_not_in_sens=%d sample=%s; in_sens_not_in_obs=%d sample=%s",
+            len(obs_pairs),
+            len(sens_pairs),
+            len(only_obs),
+            list(only_obs)[:15],
+            len(only_sens),
+            list(only_sens)[:10],
+        )
+
+    if 'sens' in mean_observed_pre_treatment.columns:
+        n_hit = int(mean_observed_pre_treatment['sens'].notna().sum())
+        logger.info(
+            "McFarland sensitivity merge: pre rows=%d with matched sens=%d (%.1f%%)",
+            len(mean_observed_pre_treatment),
+            n_hit,
+            100.0 * n_hit / max(len(mean_observed_pre_treatment), 1),
+        )
+        if n_hit == 0:
+            logger.error(
+                "No rows matched mcfarland_sensitivity_info on (cell_line, condition) vs "
+                "(cell_line, target). Check condition strings in pseudobulk vs target in resources."
+            )
+
     mean_observed_pre_treatment_with_y = add_y_and_normalize(mean_observed_pre_treatment, 'sens', normalize=False, keep=['condition', 'tissue', 'cell_line'])
     mean_observed_post_treatment_with_y = add_y_and_normalize(mean_observed_post_treatment, 'sens', normalize=False, keep=['condition', 'tissue', 'cell_line'])
     mean_observed_LFC_with_y= add_y_and_normalize(mean_observed_LFC, 'sens',normalize=False, keep=['condition', 'tissue', 'cell_line'])
 
+    logger.info(
+        "McFarland seen_seen row counts after add_y: pre=%d post=%d LFC=%d",
+        len(mean_observed_pre_treatment_with_y),
+        len(mean_observed_post_treatment_with_y),
+        len(mean_observed_LFC_with_y),
+    )
+
     features = feature_selection(mean_observed_pre_treatment_with_y.drop(columns=['y']), 1000)
-    pre_scores, pre_predictions, feature_importance_pre = within_distribution_elasticnet(mean_observed_pre_treatment_with_y, features, 'condition', 'tissue')
+    pre_scores, pre_predictions, feature_importance_pre = _mcfarland_scenario_cv(
+        mean_observed_pre_treatment_with_y, features, scenario='seen_seen', n_folds=5, random_state=1
+    )
     pre_scores_df = pre_scores.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
     pre_predictions = pre_predictions.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
 
-    post_scores, post_predictions, feature_importance_post  = within_distribution_elasticnet(mean_observed_post_treatment_with_y, features, 'condition', 'tissue')
+    post_scores, post_predictions, feature_importance_post  = _mcfarland_scenario_cv(
+        mean_observed_post_treatment_with_y, features, scenario='seen_seen', n_folds=5, random_state=1
+    )
     post_scores_df = post_scores.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
     post_predictions = post_predictions.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')    
 
-    lfc_scores, lfc_predictions, feature_importance_lfc = within_distribution_elasticnet(mean_observed_LFC_with_y, features, 'condition', 'tissue')
+    lfc_scores, lfc_predictions, feature_importance_lfc = _mcfarland_scenario_cv(
+        mean_observed_LFC_with_y, features, scenario='seen_seen', n_folds=5, random_state=1
+    )
     lfc_scores_df = lfc_scores.assign(model='LFC').assign(feature_selection='top1000 highest variance')
     lfc_predictions = lfc_predictions.assign(model='LFC').assign(feature_selection='top1000 highest variance')
 
     all_scores_leave_drug_out = pd.concat([pre_scores_df, post_scores_df, lfc_scores_df])
     all_predictions_leave_drug_out = pd.concat([pre_predictions, post_predictions, lfc_predictions])
 
-    all_scores_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_seen_seen.csv'))
-    all_predictions_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_predictions_seen_seen.csv'))
+    all_scores_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_seen_seen_cv5.csv'))
+    all_predictions_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_predictions_seen_seen_cv5.csv'))
 
-    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_feature_importance_on_pre.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_cv5_feature_importance_on_pre.pkl'), "wb") as f:
         pickle.dump(feature_importance_pre, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_feature_importance_on_post.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_cv5_feature_importance_on_post.pkl'), "wb") as f:
         pickle.dump(feature_importance_post, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_feature_importance_on_lfc.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_seen_seen_cv5_feature_importance_on_lfc.pkl'), "wb") as f:
         pickle.dump(feature_importance_lfc, f)
 
 def predictions_McFarland_LDO():
@@ -664,7 +947,7 @@ def predictions_McFarland_LDO():
     - Uses the same feature set across all test cases for consistency
     """
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
@@ -674,29 +957,35 @@ def predictions_McFarland_LDO():
     mean_observed_LFC_with_y= add_y_and_normalize(mean_observed_LFC, 'sens',normalize=False, keep=['condition', 'tissue', 'cell_line'])
 
     features = feature_selection(mean_observed_pre_treatment_with_y.drop(columns=['y']), 1000)
-    pre_scores, pre_predictions, feature_importance_pre = out_of_distribution_elasticnet(mean_observed_pre_treatment_with_y, features, ['condition'])
+    pre_scores, pre_predictions, feature_importance_pre = _mcfarland_scenario_cv(
+        mean_observed_pre_treatment_with_y, features, scenario='unseen_drug_seen_tissue', n_folds=5, random_state=1
+    )
     pre_scores_df = pre_scores.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
     pre_predictions = pre_predictions.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
 
-    post_scores, post_predictions, feature_importance_post  = out_of_distribution_elasticnet(mean_observed_post_treatment_with_y, features, ['condition'])
+    post_scores, post_predictions, feature_importance_post  = _mcfarland_scenario_cv(
+        mean_observed_post_treatment_with_y, features, scenario='unseen_drug_seen_tissue', n_folds=5, random_state=1
+    )
     post_scores_df = post_scores.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
     post_predictions = post_predictions.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')    
 
-    lfc_scores, lfc_predictions, feature_importance_lfc = out_of_distribution_elasticnet(mean_observed_LFC_with_y, features, ['condition'])
+    lfc_scores, lfc_predictions, feature_importance_lfc = _mcfarland_scenario_cv(
+        mean_observed_LFC_with_y, features, scenario='unseen_drug_seen_tissue', n_folds=5, random_state=1
+    )
     lfc_scores_df = lfc_scores.assign(model='LFC').assign(feature_selection='top1000 highest variance')
     lfc_predictions = lfc_predictions.assign(model='LFC').assign(feature_selection='top1000 highest variance')
 
     all_scores_leave_drug_out = pd.concat([pre_scores_df, post_scores_df, lfc_scores_df])
     all_predictions_leave_drug_out = pd.concat([pre_predictions, post_predictions, lfc_predictions])
 
-    all_scores_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LDO.csv'))
-    all_predictions_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LDO_predictions.csv'))
+    all_scores_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LDO_cv5.csv'))
+    all_predictions_leave_drug_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LDO_cv5_predictions.csv'))
 
-    with open(os.path.join(results_dir,'mcfarland_regression_LDO_feature_importance_on_pre.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LDO_cv5_feature_importance_on_pre.pkl'), "wb") as f:
         pickle.dump(feature_importance_pre, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_LDO_feature_importance_on_post.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LDO_cv5_feature_importance_on_post.pkl'), "wb") as f:
         pickle.dump(feature_importance_post, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_LDO_feature_importance_on_lfc.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LDO_cv5_feature_importance_on_lfc.pkl'), "wb") as f:
         pickle.dump(feature_importance_lfc, f)
 
 
@@ -714,7 +1003,7 @@ def predictions_McFarland_LTO():
     - Uses the same feature set across all test cases for consistency
     """
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
@@ -725,72 +1014,80 @@ def predictions_McFarland_LTO():
     mean_observed_LFC_with_y= add_y_and_normalize(mean_observed_LFC, 'sens',normalize=False, keep=['condition', 'tissue', 'cell_line'])
 
     features = feature_selection(mean_observed_pre_treatment_with_y.drop(columns=['y']), 1000)
-    pre_scores, pre_predictions, feature_importance_pre = out_of_distribution_elasticnet(mean_observed_pre_treatment_with_y, features, ['tissue'])
+    pre_scores, pre_predictions, feature_importance_pre = _mcfarland_scenario_cv(
+        mean_observed_pre_treatment_with_y, features, scenario='seen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     pre_scores_df = pre_scores.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
     pre_predictions = pre_predictions.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
 
-    post_scores, post_predictions, feature_importance_post = out_of_distribution_elasticnet(mean_observed_post_treatment_with_y, features, ['tissue'])
+    post_scores, post_predictions, feature_importance_post = _mcfarland_scenario_cv(
+        mean_observed_post_treatment_with_y, features, scenario='seen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     post_scores_df = post_scores.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
     post_predictions = post_predictions.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
 
-    lfc_scores, lfc_predictions, feature_importance_lfc = out_of_distribution_elasticnet(mean_observed_LFC_with_y, features, ['tissue'])
+    lfc_scores, lfc_predictions, feature_importance_lfc = _mcfarland_scenario_cv(
+        mean_observed_LFC_with_y, features, scenario='seen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     lfc_scores_df = lfc_scores.assign(model='LFC').assign(feature_selection='top1000 highest variance')
     lfc_predictions = lfc_predictions.assign(model='LFC').assign(feature_selection='top1000 highest variance')
 
     all_scores_leave_tissue_out = pd.concat([pre_scores_df, post_scores_df, lfc_scores_df])
     all_predictions_leave_tissue_out = pd.concat([pre_predictions, post_predictions, lfc_predictions])
 
-    all_scores_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LTO.csv'))
-    all_predictions_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LTO_predictions.csv'))
+    all_scores_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LTO_cv5.csv'))
+    all_predictions_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LTO_cv5_predictions.csv'))
 
-    with open(os.path.join(results_dir,'mcfarland_regression_LTO_feature_importance_on_pre.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LTO_cv5_feature_importance_on_pre.pkl'), "wb") as f:
         pickle.dump(feature_importance_pre, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_LTO_feature_importance_on_post.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LTO_cv5_feature_importance_on_post.pkl'), "wb") as f:
         pickle.dump(feature_importance_post, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_LTO_feature_importance_on_lfc.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LTO_cv5_feature_importance_on_lfc.pkl'), "wb") as f:
         pickle.dump(feature_importance_lfc, f)
 
 
 def predictions_McFarland_LOO():
     mean_observed_pre_treatment, mean_observed_post_treatment, mean_observed_LFC = get_McFarland_mean_data()
-    cellline_sensitivity_info = get_McFarland_sensitivityinfo()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
 
     mean_observed_pre_treatment = pd.merge(mean_observed_pre_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_post_treatment = pd.merge(mean_observed_post_treatment, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
     mean_observed_LFC = pd.merge(mean_observed_LFC, cellline_sensitivity_info, left_on=['cell_line', 'condition'], right_on=['cell_line', 'target'], how='left')
-
-    mean_observed_pre_treatment = filter_on_coefficient_of_variation(mean_observed_pre_treatment, groupby=['tissue', 'condition'])
-    mean_observed_post_treatment = filter_on_coefficient_of_variation(mean_observed_post_treatment, groupby=['tissue', 'condition'])
-    mean_observed_LFC = filter_on_coefficient_of_variation(mean_observed_LFC, groupby=['tissue', 'condition'])
 
     mean_observed_pre_treatment_with_y = add_y_and_normalize(mean_observed_pre_treatment, 'sens', normalize=False, keep=['condition', 'tissue', 'cell_line'])
     mean_observed_post_treatment_with_y = add_y_and_normalize(mean_observed_post_treatment, 'sens', normalize=False, keep=['condition', 'tissue', 'cell_line'])
     mean_observed_LFC_with_y= add_y_and_normalize(mean_observed_LFC, 'sens',normalize=False, keep=['condition', 'tissue', 'cell_line'])
 
     features = feature_selection(mean_observed_pre_treatment_with_y.drop(columns=['y']), 1000)
-    pre_scores, pre_predictions, feature_importance_pre = out_of_distribution_elasticnet(mean_observed_pre_treatment_with_y, features, ['tissue', 'condition'])
+    pre_scores, pre_predictions, feature_importance_pre = _mcfarland_scenario_cv(
+        mean_observed_pre_treatment_with_y, features, scenario='unseen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     pre_scores_df = pre_scores.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
     pre_predictions = pre_predictions.assign(model='pre-treatment').assign(feature_selection='top1000 highest variance')
 
-    post_scores, post_predictions, feature_importance_post = out_of_distribution_elasticnet(mean_observed_post_treatment_with_y, features, ['tissue', 'condition'])
+    post_scores, post_predictions, feature_importance_post = _mcfarland_scenario_cv(
+        mean_observed_post_treatment_with_y, features, scenario='unseen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     post_scores_df = post_scores.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
     post_predictions = post_predictions.assign(model='post-treatment').assign(feature_selection='top1000 highest variance')
 
-    lfc_scores, lfc_predictions, feature_importance_lfc = out_of_distribution_elasticnet(mean_observed_LFC_with_y, features,['tissue', 'condition'])
+    lfc_scores, lfc_predictions, feature_importance_lfc = _mcfarland_scenario_cv(
+        mean_observed_LFC_with_y, features, scenario='unseen_drug_unseen_tissue', n_folds=5, random_state=1
+    )
     lfc_scores_df = lfc_scores.assign(model='LFC').assign(feature_selection='top1000 highest variance')
     lfc_predictions = lfc_predictions.assign(model='LFC').assign(feature_selection='top1000 highest variance')
 
     all_scores_leave_tissue_out = pd.concat([pre_scores_df, post_scores_df, lfc_scores_df])
     all_predictions_leave_tissue_out = pd.concat([pre_predictions, post_predictions, lfc_predictions])
 
-    all_scores_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LOO.csv'))
-    all_predictions_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LOO_predictions.csv'))
+    all_scores_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LOO_cv5.csv'))
+    all_predictions_leave_tissue_out.to_csv(os.path.join(results_dir,'mcfarland_regression_LOO_cv5_predictions.csv'))
 
-    with open(os.path.join(results_dir,'mcfarland_regression_LOO_feature_importance_on_pre.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LOO_cv5_feature_importance_on_pre.pkl'), "wb") as f:
         pickle.dump(feature_importance_pre, f)
-    with open(os.path.join(results_dir,'mcfarland_regression_LOO_feature_importance_on_post.pkl'), "wb") as f:
+    with open(os.path.join(results_dir,'mcfarland_regression_LOO_cv5_feature_importance_on_post.pkl'), "wb") as f:
         pickle.dump(feature_importance_post, f)
-    with open(os.path.join(results_dir, 'mcfarland_regression_LOO_feature_importance_on_lfc.pkl'), "wb") as f:
+    with open(os.path.join(results_dir, 'mcfarland_regression_LOO_cv5_feature_importance_on_lfc.pkl'), "wb") as f:
         pickle.dump(feature_importance_lfc, f)
 
 
@@ -873,6 +1170,323 @@ def predictions_indepedent_test_set_classification(X_train, X_test, features, bo
     y_test_binary_obs = (y_test > boundary).astype(int)
 
     return pd.DataFrame({'pred': y_test_binary_pred, 'true': y_test_binary_obs})
+
+def _mcfarland_predefined_fold_cv(
+    df_with_y: pd.DataFrame,
+    selected_features: list[str],
+    dedupe_train: bool = False,
+    test_profiles_df: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    ElasticNet regression with train/test splits defined by the ``fold`` column.
+
+    For each test fold, rows with ``fold == test_fold`` are held out; all other folds
+    are used for training. When ``dedupe_train`` is True, training rows are deduplicated
+    on (cell_line, condition) so identical observed profiles are not overweighted.
+
+    If ``test_profiles_df`` is set, train on ``df_with_y`` and evaluate on
+    ``test_profiles_df`` for the held-out fold (optional; default is train and test on
+    the same profile table).
+    """
+    if 'fold' not in df_with_y.columns:
+        raise ValueError("df_with_y must contain a 'fold' column for predefined-fold CV")
+    if test_profiles_df is not None and 'fold' not in test_profiles_df.columns:
+        raise ValueError("test_profiles_df must contain a 'fold' column")
+
+    _meta_cols = [c for c in ('y', 'tissue', 'cell_line', 'condition', 'fold') if c in df_with_y.columns]
+    df_with_y = df_with_y.reset_index(drop=True).copy()
+    if _meta_cols:
+        df_with_y = df_with_y.dropna(axis=0, subset=_meta_cols)
+
+    if test_profiles_df is not None:
+        test_profiles_df = test_profiles_df.reset_index(drop=True).copy()
+        test_meta = [c for c in _meta_cols if c in test_profiles_df.columns]
+        if test_meta:
+            test_profiles_df = test_profiles_df.dropna(axis=0, subset=test_meta)
+
+    selected_features = list(set(selected_features).intersection(set(df_with_y.columns)))
+    if test_profiles_df is not None:
+        selected_features = list(set(selected_features).intersection(set(test_profiles_df.columns)))
+    if len(selected_features) == 0:
+        logger.error("_mcfarland_predefined_fold_cv: no selected features intersect dataframe columns")
+        return (
+            pd.DataFrame(columns=['accuracy', 'split']),
+            pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'split']),
+            {},
+        )
+
+    test_folds = sorted(df_with_y['fold'].dropna().unique())
+    param_grid = {
+        'elasticnet__alpha': [0.1, 1.0, 10.0],
+        'elasticnet__l1_ratio': [0.0, 0.1, 0.5, 1.0],
+    }
+
+    outer_scores = []
+    outcomes = []
+    feature_importance_dict = {}
+
+    fold_key_cols = ['cell_line', 'condition', 'fold']
+
+    for test_fold in test_folds:
+        train_df = df_with_y.loc[df_with_y['fold'] != test_fold].copy()
+        if test_profiles_df is None:
+            test_df = df_with_y.loc[df_with_y['fold'] == test_fold].copy()
+        else:
+            key_cols = [c for c in fold_key_cols if c in df_with_y.columns and c in test_profiles_df.columns]
+            observed_test_keys = df_with_y.loc[df_with_y['fold'] == test_fold, key_cols].drop_duplicates()
+            test_df = test_profiles_df.loc[test_profiles_df['fold'] == test_fold].copy()
+            if key_cols:
+                test_df = test_df.merge(observed_test_keys, on=key_cols, how='inner')
+
+        if dedupe_train:
+            train_df = train_df.drop_duplicates(subset=['cell_line', 'condition'], keep='first')
+
+        if len(train_df) < 2 or len(test_df) < 1:
+            logger.info(
+                "_mcfarland_predefined_fold_cv skip fold=%s: n_train=%d n_test=%d",
+                test_fold,
+                len(train_df),
+                len(test_df),
+            )
+            continue
+
+        y_train = train_df['y'].astype(float)
+        y_test = test_df['y'].astype(float).reset_index(drop=True)
+        X_train = train_df.drop(columns=['y'])
+        X_test = test_df.drop(columns=['y'])
+
+        identifiers = X_test[['tissue', 'cell_line', 'condition']].reset_index(drop=True)
+        X_train = X_train[selected_features]
+        X_test = X_test[selected_features]
+        X_train = X_train.drop(columns=['tissue', 'cell_line', 'condition', 'fold'], errors='ignore').astype(float)
+        X_test = X_test.drop(columns=['tissue', 'cell_line', 'condition', 'fold'], errors='ignore').astype(float)
+        X_train = X_train.fillna(0.0)
+        X_test = X_test.fillna(0.0)
+
+        cv_folds = min(5, len(X_train))
+        if cv_folds < 2:
+            logger.info("_mcfarland_predefined_fold_cv skip fold=%s: inner cv_folds=%d", test_fold, cv_folds)
+            continue
+
+        pipeline = Pipeline([
+            ('scaler', StandardScaler()),
+            ('elasticnet', ElasticNet(max_iter=1000)),
+        ])
+        grid_search = GridSearchCV(pipeline, param_grid, cv=cv_folds)
+        try:
+            grid_search.fit(X_train, y_train)
+        except Exception as exc:
+            logger.exception(
+                "_mcfarland_predefined_fold_cv: GridSearchCV failed test_fold=%s: %s",
+                test_fold,
+                exc,
+            )
+            continue
+
+        y_pred = grid_search.predict(X_test)
+        best_model = grid_search.best_estimator_.named_steps['elasticnet']
+        outer_acc = np.sqrt(mean_squared_error(y_test, y_pred))
+
+        fold_name = f'fold={test_fold}'
+        feature_importance_dict[fold_name] = pd.Series(
+            index=X_train.columns, data=best_model.coef_, name=fold_name
+        )
+
+        split_outcomes = pd.concat(
+            [identifiers, pd.DataFrame({'pred': y_pred, 'true': y_test})],
+            axis=1,
+        )
+        outcomes.append(split_outcomes.assign(split=test_fold))
+        outer_scores.append(pd.DataFrame({'accuracy': [outer_acc], 'split': [test_fold]}))
+        logger.info(
+            "_mcfarland_predefined_fold_cv ok: test_fold=%s RMSE_sqrt=%.4f n_train=%d n_test=%d",
+            test_fold,
+            outer_acc,
+            len(X_train),
+            len(X_test),
+        )
+
+    if outer_scores:
+        outer_scores = pd.concat(outer_scores, ignore_index=True)
+    else:
+        outer_scores = pd.DataFrame(columns=['accuracy', 'split'])
+
+    if outcomes:
+        outcomes = pd.concat(outcomes, ignore_index=True)
+    else:
+        outcomes = pd.DataFrame(columns=['tissue', 'cell_line', 'condition', 'pred', 'true', 'split'])
+
+    return outer_scores, outcomes, feature_importance_dict
+
+
+def predict_McFarland_with_CPA_profiles_CV(
+    n_features: int = 1000,
+    results_prefix: str = 'mcfarland_CPA_fold_cv',
+) -> None:
+    """
+    Predict McFarland drug sensitivity using CPA fold splits.
+
+    Uses ``fold`` from CPA predicted profiles (``mcfarland_mean_post_all.csv`` /
+    ``mcfarland_mean_lfc_all.csv``) for outer CV. Observed and baseline profiles receive
+    the same fold labels. For each profile source, the model is trained and tested on
+    that source only (e.g. CPA post profiles for train and test when evaluating CPA).
+
+    Saves regression scores, per-sample predictions, and feature-importance pickles for
+    observed, CPA-predicted, no-effect, and average-effect profiles.
+    """
+    mean_observed_pre, mean_observed_post, mean_observed_lfc = get_McFarland_mean_data()
+    mean_cpa_post, mean_cpa_lfc = get_McFarland_CPA_predictions()
+    mean_cpa_post = mean_cpa_post.copy()
+    mean_cpa_lfc = mean_cpa_lfc.copy()
+    mean_no_effect_post = get_McFarland_no_effect_predictions()
+    mean_avg_post, mean_avg_lfc = get_McFarland_average_effect_predictions()
+    cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
+
+    def _merge_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
+        return pd.merge(
+            df,
+            cellline_sensitivity_info,
+            left_on=['cell_line', 'condition'],
+            right_on=['cell_line', 'target'],
+            how='left',
+        )
+
+    mean_observed_pre = _merge_sensitivity(mean_observed_pre)
+    mean_observed_post = _merge_sensitivity(mean_observed_post)
+    mean_observed_lfc = _merge_sensitivity(mean_observed_lfc)
+    mean_cpa_post = _merge_sensitivity(mean_cpa_post)
+    mean_cpa_lfc = _merge_sensitivity(mean_cpa_lfc)
+    mean_no_effect_post = _merge_sensitivity(mean_no_effect_post)
+    mean_avg_post = _merge_sensitivity(mean_avg_post)
+    mean_avg_lfc = _merge_sensitivity(mean_avg_lfc)
+
+    mean_observed_pre = filter_on_coefficient_of_variation(mean_observed_pre, groupby=['condition'])
+    mean_observed_post = filter_on_coefficient_of_variation(mean_observed_post, groupby=['condition'])
+    mean_observed_lfc = filter_on_coefficient_of_variation(mean_observed_lfc, groupby=['condition'])
+    mean_cpa_post = filter_on_coefficient_of_variation(mean_cpa_post, groupby=['condition'])
+    mean_cpa_lfc = filter_on_coefficient_of_variation(mean_cpa_lfc, groupby=['condition'])
+    mean_no_effect_post = filter_on_coefficient_of_variation(mean_no_effect_post, groupby=['condition'])
+    mean_avg_post = filter_on_coefficient_of_variation(mean_avg_post, groupby=['condition'])
+    mean_avg_lfc = filter_on_coefficient_of_variation(mean_avg_lfc, groupby=['condition'])
+
+    cpa_fold_keys = mean_cpa_post[['cell_line', 'condition', 'fold']].drop_duplicates()
+    mean_observed_pre = expand_mcfarland_profiles_with_folds(mean_observed_pre, mean_cpa_post)
+    mean_observed_post = expand_mcfarland_profiles_with_folds(mean_observed_post, mean_cpa_post)
+    mean_observed_lfc = expand_mcfarland_profiles_with_folds(mean_observed_lfc, mean_cpa_post)
+    mean_no_effect_post = expand_mcfarland_profiles_with_folds(mean_no_effect_post, mean_cpa_post)
+    mean_avg_post = expand_mcfarland_profiles_with_folds(mean_avg_post, mean_cpa_post)
+    mean_avg_lfc = expand_mcfarland_profiles_with_folds(mean_avg_lfc, mean_cpa_post)
+    mean_cpa_post = align_mcfarland_profiles_to_fold_keys(mean_cpa_post, cpa_fold_keys)
+    mean_cpa_lfc = align_mcfarland_profiles_to_fold_keys(mean_cpa_lfc, cpa_fold_keys)
+
+    log_mcfarland_profile_expression_difference(
+        mean_observed_post, mean_cpa_post, 'CPA post-treatment'
+    )
+    log_mcfarland_profile_expression_difference(
+        mean_observed_lfc, mean_cpa_lfc, 'CPA LFC'
+    )
+
+    _meta_cols = {
+        'cell_line', 'condition', 'tissue', 'fold', 'sens', 'target', 'sens_label',
+        'n_cells', 'cell_type', 'y',
+    }
+    mean_no_effect_lfc = mean_no_effect_post.copy()
+    gene_cols = [c for c in mean_no_effect_lfc.columns if c not in _meta_cols]
+    mean_no_effect_lfc[gene_cols] = 0.0
+
+    feature_to_keep = ['condition', 'tissue', 'cell_line', 'fold']
+    mean_observed_pre_with_y = add_y_and_normalize(
+        mean_observed_pre, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_observed_post_with_y = add_y_and_normalize(
+        mean_observed_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_observed_lfc_with_y = add_y_and_normalize(
+        mean_observed_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_cpa_post_with_y = add_y_and_normalize(
+        mean_cpa_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_cpa_lfc_with_y = add_y_and_normalize(
+        mean_cpa_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_no_effect_post_with_y = add_y_and_normalize(
+        mean_no_effect_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_no_effect_lfc_with_y = add_y_and_normalize(
+        mean_no_effect_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_avg_post_with_y = add_y_and_normalize(
+        mean_avg_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_avg_lfc_with_y = add_y_and_normalize(
+        mean_avg_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+
+    features = feature_selection(
+        mean_observed_pre_with_y.drop(columns=['y', 'fold'], errors='ignore'),
+        n_features=n_features,
+    )
+    logger.info("predict_McFarland_with_CPA_profiles_CV: using %d features", len(features))
+
+    # (profile_source, model_label, df_with_y, dedupe_train)
+    profile_configs = [
+        ('observed', 'pre_treatment', mean_observed_pre_with_y, True),
+        ('observed', 'post_treatment', mean_observed_post_with_y, True),
+        ('observed', 'LFC', mean_observed_lfc_with_y, True),
+        ('CPA_predicted', 'post_treatment', mean_cpa_post_with_y, False),
+        ('CPA_predicted', 'LFC', mean_cpa_lfc_with_y, False),
+        ('no_effect', 'post_treatment', mean_no_effect_post_with_y, True),
+        ('no_effect', 'LFC', mean_no_effect_lfc_with_y, True),
+        ('average_effect', 'post_treatment', mean_avg_post_with_y, True),
+        ('average_effect', 'LFC', mean_avg_lfc_with_y, True),
+    ]
+
+    all_scores = []
+    all_predictions = []
+    feature_importance: dict[str, dict] = {}
+
+    for profile_source, model_label, df_with_y, dedupe_train in profile_configs:
+        logger.info(
+            "predict_McFarland_with_CPA_profiles_CV: %s / %s (rows=%d)",
+            profile_source,
+            model_label,
+            len(df_with_y),
+        )
+        scores, predictions, fi = _mcfarland_predefined_fold_cv(
+            df_with_y,
+            features,
+            dedupe_train=dedupe_train,
+        )
+        scores = (
+            scores.assign(profile_source=profile_source)
+            .assign(model=model_label)
+            .assign(feature_selection=f'top{n_features} HVG')
+        )
+        predictions = (
+            predictions.assign(profile_source=profile_source)
+            .assign(model=model_label)
+            .assign(feature_selection=f'top{n_features} HVG')
+        )
+        all_scores.append(scores)
+        all_predictions.append(predictions)
+        feature_importance[f'{profile_source}_{model_label}'] = fi
+
+    results = pd.concat(all_scores, ignore_index=True)
+    predictions_df = pd.concat(all_predictions, ignore_index=True)
+
+    results.to_csv(os.path.join(results_dir, f'{results_prefix}_results.csv'))
+    predictions_df.to_csv(os.path.join(results_dir, f'{results_prefix}_predictions.csv'))
+    with open(os.path.join(results_dir, f'{results_prefix}_feature_importance.pkl'), 'wb') as f:
+        pickle.dump(feature_importance, f)
+
+    logger.info(
+        "predict_McFarland_with_CPA_profiles_CV: wrote %s (%d score rows, %d prediction rows)",
+        results_prefix,
+        len(results),
+        len(predictions_df),
+    )
+
 
 def resample_by_bins(df, n_bins=5, max_samples_per_bin=None, random_state=42):
     # Bin the response variable
@@ -1008,7 +1622,11 @@ def predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indeped
                     'average_effect':get_average_effect_predictions}
         for model_name, get_data_func in predictions.items():
             print(model_name)
-            post_predicted, lfc_predicted = get_data_func()
+            try:
+                post_predicted, lfc_predicted = get_data_func()
+            except FileNotFoundError as e:
+                logger.warning(f"Skipping {model_name}: missing prediction input file ({e})")
+                continue
 
             post_predicted = pd.merge(post_predicted, sensitivities, on=['cell_line', 'condition'], how='left').dropna()
             lfc_predicted = pd.merge(lfc_predicted, sensitivities, on=['cell_line', 'condition'], how='left').dropna()
@@ -1079,32 +1697,34 @@ if __name__ == '__main__':
         logger.info(f"Resources directory: {resources_dir}")
 
         # Run prediction analyses
-        logger.info("Starting drug sensitivity prediction pipeline...")
+        # logger.info("Starting drug sensitivity prediction pipeline...")
 
-        logger.info("Predicting with sciplex profiles...")
-        predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=False, two_part_bool=True, results_file='sciplex_regression_predictions_CV_twostep_AUC')
-        predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=True, two_part_bool=True, results_file='sciplex_regression_predictions_selftrained_CV_twostep_AUC')
+        # logger.info("Predicting with sciplex profiles...")
+        # predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=False, two_part_bool=True, results_file='sciplex_regression_predictions_CV_twostep_AUC')
+        # predict_with_predicted_sciplex_profiles_CV(eval_function=predictions_indepedent_test_set_twopart, train_on_predicted=True, two_part_bool=True, results_file='sciplex_regression_predictions_selftrained_CV_twostep_AUC')
 
-        logger.info("Running per-treatment models...")
-        predictions_McFarland_per_treatment()
+        # logger.info("Running per-treatment models...")
+        # predictions_McFarland_per_treatment()
         
-        logger.info("Running per-tissue models...")
-        predictions_McFarland_per_tissue()
+        # logger.info("Running per-tissue models...")
+        # predictions_McFarland_per_tissue()
 
-        logger.info("Running full McFarland models...")
-        predictions_McFarland()
+        # logger.info("Running full McFarland models...")
+        # predictions_McFarland()
         
-        logger.info("Running seen-seen analysis...")
-        predictions_McFarland_seen_seen()
+        # logger.info("Running seen-seen analysis...")
+        # predictions_McFarland_seen_seen()
         
-        logger.info("Running leave-drug-out analysis...")
-        predictions_McFarland_LDO()
+        # logger.info("Running leave-drug-out analysis...")
+        # predictions_McFarland_LDO()
         
-        logger.info("Running leave-tissue-out analysis...")
-        predictions_McFarland_LTO()
+        # logger.info("Running leave-tissue-out analysis...")
+        # predictions_McFarland_LTO()
         
-        logger.info("Running leave-one-out analysis...")
-        predictions_McFarland_LOO()
+        # logger.info("Running leave-one-out analysis...")
+        # predictions_McFarland_LOO()
+
+        predict_McFarland_with_CPA_profiles_CV()
 
         logger.info("Drug sensitivity prediction pipeline completed successfully")
         

@@ -149,7 +149,8 @@ def import_common_functions():
     
     common_functions = [
         'get_McFarland_mean_data',
-        'get_McFarland_sensitivityinfo', 
+        'get_McFarland_sensitivityinfo',
+        'get_McFarland_sensitivityinfo_for_profile_merge',
         'get_sens_labels',
         'filter_on_coefficient_of_variation',
         'add_y_and_normalize',

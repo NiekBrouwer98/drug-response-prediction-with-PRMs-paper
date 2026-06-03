@@ -53,16 +53,27 @@ def process_mcfarland_observations():
     mean_ctrl_expression.drop(columns=['condition'], inplace=True)
     mean_ctrl_expression = pd.merge(mean_ctrl_expression.reset_index(drop=True),all_pairs, on=['cell_type'], how='left')
 
-    mean_post_treatment['cell_type'] = mean_post_treatment['cell_type'].str.split('_').str[0]
-    mean_ctrl_expression['cell_type'] = mean_ctrl_expression['cell_type'].str.split('_').str[0]
+    # Keep tissue as its own column before stripping cell_type to DepMap-style line names (required for
+    # get_tissue_labels / LTO CV). Older CSVs only stored the stripped token and lost tissue entirely.
+    def _split_cell_type_line_tissue(df: pd.DataFrame) -> pd.DataFrame:
+        out = df.copy()
+        sp = out['cell_type'].astype(str).str.split('_', n=1, expand=True)
+        out['tissue'] = sp[1] if 1 in sp.columns else pd.NA
+        out['cell_type'] = sp[0]
+        return out
+
+    mean_post_treatment = _split_cell_type_line_tissue(mean_post_treatment)
+    mean_ctrl_expression = _split_cell_type_line_tissue(mean_ctrl_expression)
     mean_post_treatment.to_csv(os.path.join(data_dir,'observed_pseudobulk','mcfarland_mean_post_all_celllines.csv'))
     mean_ctrl_expression.to_csv(os.path.join(data_dir,'observed_pseudobulk','mcfarland_mean_pre_all_celllines.csv'))
 
     condition = mean_post_treatment['condition']
-    mean_gene_expression = mean_post_treatment.set_index('cell_type').drop('condition', axis=1)
-    mean_ctrl_expression = mean_ctrl_expression.set_index('cell_type').drop('condition', axis=1)
-    mean_LFC = mean_gene_expression.subtract(mean_ctrl_expression).reset_index()
+    mean_gene_expression = mean_post_treatment.set_index('cell_type').drop(['condition', 'tissue'], axis=1)
+    mean_ctrl_for_lfc = mean_ctrl_expression.set_index('cell_type').drop(['condition', 'tissue'], axis=1)
+    mean_LFC = mean_gene_expression.subtract(mean_ctrl_for_lfc).reset_index()
     mean_LFC['condition'] = condition.tolist()
+    tissue_map = mean_post_treatment[['cell_type', 'tissue']].drop_duplicates()
+    mean_LFC = mean_LFC.merge(tissue_map, on='cell_type', how='left')
     mean_LFC.to_csv(os.path.join(data_dir,'observed_pseudobulk','mcfarland_mean_LFC_all_celllines.csv'))
 
 
