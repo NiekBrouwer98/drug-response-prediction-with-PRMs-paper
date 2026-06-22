@@ -101,7 +101,7 @@ config = Config('config.yaml')  # Load custom configuration
 ```
 
 ## Datasets
-To facilitate reproduction, we have made all processed files available here: https://surfdrive.surf.nl/s/Fdg4spN2zbtkwMa.
+To facilitate reproduction, we have made all processed files available here: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
 
 The raw datasets were retrieved from their original source:
 - [McFarland et al. (2020)](https://figshare.com/s/139f64b495dea9d88c70): Large-scale drug sensitivity screening across cancer cell lines 
