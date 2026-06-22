@@ -1,6 +1,6 @@
-# Drug Response Prediction Provides a Biologically Relevant Benchmark for Perturbation Response Models
+# Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models
 
-This repository contains the code to reproduce the analyses and figures for the study "Drug Response Prediction Provides a Biologically Relevant Benchmark for Perturbation Response Models" ([under review](link)).
+This repository contains the code to reproduce the analyses and figures for the study "Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models" ([under review](link)).
 
 ## Project Structure
 
