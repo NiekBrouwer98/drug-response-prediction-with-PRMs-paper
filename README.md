@@ -142,11 +142,11 @@ apptainer exec drug-response-prediction.sif python scripts/04_predict_drug_respo
 If you use this code in your research, please cite:
 
 ```bibtex
-@article{brouwer2025drug,
-  title={Drug Response Prediction Provides a Biologically Relevant Benchmark for Perturbation Response Models},
+@article{brouwer2026drug,
+  title={Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models},
   author={Brouwer, Niek and Damyanov, Martin and Argelo, Jonas and Vis, Dani{\"e}l J and Reinders, Marcel JT and Wessels, Lodewyk FA},
   journal={[Journal Name]},
-  year={2025}
+  year={2026}
 }
 ```
 
