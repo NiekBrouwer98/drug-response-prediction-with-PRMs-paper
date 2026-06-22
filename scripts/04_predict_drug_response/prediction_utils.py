@@ -394,6 +394,142 @@ def get_McFarland_CPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
     return post_predictions, lfc_predictions
 
 
+def get_McFarland_GEARS_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Load McFarland GEARS post-treatment and LFC pseudobulk tables.
+
+    Each row includes a ``fold`` column (0–4) from the GEARS cross-validation splits.
+    """
+    post_path = os.path.join(data_dir, 'GEARS_predictions', 'mcfarland_mean_post_all.csv')
+    lfc_path = os.path.join(data_dir, 'GEARS_predictions', 'mcfarland_mean_LFC_all.csv')
+    if not os.path.exists(post_path):
+        raise FileNotFoundError(f'McFarland GEARS post file not found: {post_path}')
+    if not os.path.exists(lfc_path):
+        raise FileNotFoundError(f'McFarland GEARS LFC file not found: {lfc_path}')
+
+    post_predictions = pd.read_csv(post_path)
+    lfc_predictions = pd.read_csv(lfc_path)
+    if 'perturbation' in post_predictions.columns:
+        post_predictions = post_predictions.rename(columns={'perturbation': 'condition'})
+    if 'perturbation' in lfc_predictions.columns:
+        lfc_predictions = lfc_predictions.rename(columns={'perturbation': 'condition'})
+
+    post_predictions = _normalize_mcfarland_profile_columns(post_predictions)
+    lfc_predictions = _normalize_mcfarland_profile_columns(lfc_predictions)
+
+    tissues = get_tissue_labels()
+    for name, frame in (('post', post_predictions), ('lfc', lfc_predictions)):
+        frame = frame.drop(columns=['tissue'], errors='ignore').merge(tissues, on='cell_line', how='left')
+        if name == 'post':
+            post_predictions = frame
+        else:
+            lfc_predictions = frame
+
+    if 'fold' not in post_predictions.columns:
+        raise ValueError("McFarland GEARS post predictions must contain a 'fold' column")
+    if 'fold' not in lfc_predictions.columns:
+        raise ValueError("McFarland GEARS LFC predictions must contain a 'fold' column")
+
+    logger.info(
+        "get_McFarland_GEARS_predictions: post rows=%d LFC rows=%d folds=%s",
+        len(post_predictions),
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()),
+    )
+    return post_predictions, lfc_predictions
+
+
+def compute_mcfarland_lfc_from_post_and_pre(
+    post_predictions: pd.DataFrame,
+    pre_treatment: pd.DataFrame,
+) -> pd.DataFrame:
+    """LFC = post minus per-cell-line pre-treatment mean (same logic as process_mcfarland.ipynb)."""
+    post_predictions = _normalize_mcfarland_profile_columns(post_predictions)
+    pre_treatment = _normalize_mcfarland_profile_columns(pre_treatment)
+
+    meta_cols = {
+        'cell_line', 'cell_type', 'condition', 'tissue', 'fold', 'n_cells',
+        'sens', 'target', 'sens_label', 'Unnamed: 0', 'drug',
+    }
+    gene_cols = [
+        c
+        for c in post_predictions.columns
+        if c not in meta_cols and c in pre_treatment.columns
+    ]
+    if not gene_cols:
+        raise ValueError('No shared gene columns between post predictions and pre-treatment profiles.')
+    cell_col = 'cell_line' if 'cell_line' in post_predictions.columns else 'cell_type'
+
+    combined_gene_df = post_predictions[[cell_col] + gene_cols].copy()
+    pre_gene_df = pre_treatment[[cell_col] + gene_cols].copy().drop_duplicates()
+    lfc_df = combined_gene_df.merge(
+        pre_gene_df, on=cell_col, how='left', suffixes=('', '_pre')
+    )
+    for gene in gene_cols:
+        lfc_df[gene] = lfc_df[gene] - lfc_df[f'{gene}_pre']
+
+    lfc_result = lfc_df[[cell_col] + gene_cols].copy()
+    for col in ('condition', 'fold'):
+        if col in post_predictions.columns:
+            lfc_result[col] = post_predictions[col].values
+    return _normalize_mcfarland_profile_columns(lfc_result)
+
+
+def get_McFarland_scFoundation_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Load McFarland scFoundation post-treatment and LFC pseudobulk tables.
+
+    LFC is read from ``scfoundation_predictions/mcfarland_mean_LFC_all.csv`` when present;
+    otherwise computed from post minus observed pre-treatment pseudobulk.
+    """
+    post_path = os.path.join(data_dir, 'scfoundation_predictions', 'mcfarland_mean_post_all.csv')
+    lfc_path = os.path.join(data_dir, 'scfoundation_predictions', 'mcfarland_mean_LFC_all.csv')
+    if not os.path.exists(post_path):
+        raise FileNotFoundError(f'McFarland scFoundation post file not found: {post_path}')
+
+    post_predictions = pd.read_csv(post_path)
+    if 'test_condition' in post_predictions.columns:
+        post_predictions = post_predictions.rename(columns={'test_condition': 'condition'})
+    if 'perturbation' in post_predictions.columns:
+        post_predictions = post_predictions.rename(columns={'perturbation': 'condition'})
+    post_predictions = _normalize_mcfarland_profile_columns(post_predictions)
+
+    if os.path.exists(lfc_path):
+        lfc_predictions = pd.read_csv(lfc_path)
+        if 'perturbation' in lfc_predictions.columns:
+            lfc_predictions = lfc_predictions.rename(columns={'perturbation': 'condition'})
+        lfc_predictions = _normalize_mcfarland_profile_columns(lfc_predictions)
+    else:
+        pre_path = os.path.join(data_dir, 'observed_pseudobulk', 'mcfarland_mean_pre_all_celllines.csv')
+        pre_treatment = pd.read_csv(pre_path, index_col=0)
+        lfc_predictions = compute_mcfarland_lfc_from_post_and_pre(post_predictions, pre_treatment)
+        logger.info(
+            'get_McFarland_scFoundation_predictions: computed LFC from post and %s',
+            pre_path,
+        )
+
+    tissues = get_tissue_labels()
+    for name, frame in (('post', post_predictions), ('lfc', lfc_predictions)):
+        frame = frame.drop(columns=['tissue'], errors='ignore').merge(tissues, on='cell_line', how='left')
+        if name == 'post':
+            post_predictions = frame
+        else:
+            lfc_predictions = frame
+
+    if 'fold' not in post_predictions.columns:
+        raise ValueError("McFarland scFoundation post predictions must contain a 'fold' column")
+    if 'fold' not in lfc_predictions.columns:
+        raise ValueError("McFarland scFoundation LFC predictions must contain a 'fold' column")
+
+    logger.info(
+        "get_McFarland_scFoundation_predictions: post rows=%d LFC rows=%d folds=%s",
+        len(post_predictions),
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()),
+    )
+    return post_predictions, lfc_predictions
+
+
 def expand_mcfarland_profiles_with_folds(
     profiles: pd.DataFrame,
     fold_reference: pd.DataFrame,

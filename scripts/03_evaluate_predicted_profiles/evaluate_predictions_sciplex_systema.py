@@ -18,6 +18,14 @@ from utils import (
     setup_logging_for_script,
 )
 from compute_de_genes import main as compute_de_genes_main
+from systema_reference import (
+    leave_one_split_reference_vectors,
+    leave_one_split_reference_vectors_per_cell_line,
+    observation_profiles_with_split,
+    reference_vectors_per_cell_line_non_control,
+    resolve_cell_line_column,
+    resolve_split_column,
+)
 
 setup_project()
 logger = setup_logging_for_script(__file__)
@@ -30,8 +38,8 @@ figures_dir = str(config.FIGURES_03_DIR)
 
 ensure_directories_exist(home_dir, data_dir, resources_dir, results_dir, figures_dir)
 
-N_SYSTEMA_REFERENCE_PERTS = 200
 CONTROL_CONDITION = "ctrl"
+SCIPLEX_KEY_COLS = ("cell_type", "condition")
 
 
 def _get_common_gene_columns(
@@ -51,38 +59,55 @@ def _safe_pearson(x: np.ndarray, y: np.ndarray) -> float:
     return float(val)
 
 
-def _systema_reference_vector(
-    observations: pd.DataFrame, gene_columns: list[str], n_reference_perts: int = N_SYSTEMA_REFERENCE_PERTS
+def _systema_reference_all_non_control(
+    observations: pd.DataFrame, gene_columns: list[str]
 ) -> pd.Series:
+    """Fallback when profiles lack fold/split labels (current SciPlex pseudobulks)."""
     observations_no_ctrl = observations[observations["condition"] != CONTROL_CONDITION]
     if observations_no_ctrl.empty:
         raise ValueError("No non-control observations available to compute Systema reference vector.")
-
-    unique_conditions = observations_no_ctrl["condition"].unique()[:n_reference_perts]
-    reference_subset = observations_no_ctrl[observations_no_ctrl["condition"].isin(unique_conditions)]
-    return reference_subset[gene_columns].mean(axis=0)
+    return observations_no_ctrl[gene_columns].mean(axis=0)
 
 
 def compute_metrics_with_systema(
     predictions: pd.DataFrame,
     observations: pd.DataFrame,
     de_genes: pd.DataFrame,
-    n_reference_perts: int = N_SYSTEMA_REFERENCE_PERTS,
 ) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
     metrics: dict[str, list[float]] = {
         "mse": [],
         "pearson": [],
         "pearson_systema": [],
+        "pearson_systema_cellline": [],
         "mse_de": [],
         "pearson_de": [],
         "pearson_systema_de": [],
+        "pearson_systema_cellline_de": [],
     }
     metrics_pert: dict[str, dict[str, float]] = {}
 
     gene_columns = _get_common_gene_columns(predictions, observations)
-    reference_vector = _systema_reference_vector(
-        observations=observations, gene_columns=gene_columns, n_reference_perts=n_reference_perts
-    )
+    split_col = resolve_split_column(predictions)
+    cell_line_col = resolve_cell_line_column(observations)
+    if split_col is not None:
+        ref_profiles = observation_profiles_with_split(
+            observations, predictions, key_cols=SCIPLEX_KEY_COLS
+        )
+        reference_by_split = leave_one_split_reference_vectors(
+            ref_profiles, gene_columns, split_col
+        )
+        reference_by_split_cellline = leave_one_split_reference_vectors_per_cell_line(
+            ref_profiles, gene_columns, split_col, cell_line_col=cell_line_col
+        )
+        reference_by_cellline = None
+        reference_vector = None
+    else:
+        reference_by_split = None
+        reference_by_split_cellline = None
+        reference_vector = _systema_reference_all_non_control(observations, gene_columns)
+        reference_by_cellline = reference_vectors_per_cell_line_non_control(
+            observations, gene_columns, cell_line_col=cell_line_col
+        )
 
     for pert in np.unique(predictions["condition"]):
         predicted_rows = predictions[predictions["condition"] == pert]
@@ -92,7 +117,24 @@ def compute_metrics_with_systema(
 
         predicted_expression = predicted_rows[gene_columns].iloc[0].to_numpy(dtype=float)
         true_expression = observed_rows[gene_columns].iloc[0].to_numpy(dtype=float)
-        reference_expression = reference_vector[gene_columns].to_numpy(dtype=float)
+        cell_line_value = str(predicted_rows[cell_line_col].iloc[0])
+
+        if reference_by_split is not None:
+            split_value = int(predicted_rows[split_col].iloc[0])
+            reference_expression = reference_by_split[split_value].to_numpy(dtype=float)
+            ref_key = (split_value, cell_line_value)
+            ref_expr_cl = (
+                reference_by_split_cellline[ref_key].to_numpy(dtype=float)
+                if ref_key in reference_by_split_cellline
+                else None
+            )
+        else:
+            reference_expression = reference_vector.to_numpy(dtype=float)
+            ref_expr_cl = (
+                reference_by_cellline[cell_line_value].to_numpy(dtype=float)
+                if cell_line_value in reference_by_cellline
+                else None
+            )
 
         centered_pred = predicted_expression - reference_expression
         centered_true = true_expression - reference_expression
@@ -101,15 +143,25 @@ def compute_metrics_with_systema(
             "mse": float(mse(predicted_expression, true_expression)),
             "pearson": _safe_pearson(predicted_expression, true_expression),
             "pearson_systema": _safe_pearson(centered_pred, centered_true),
+            "pearson_systema_cellline": (
+                _safe_pearson(
+                    predicted_expression - ref_expr_cl,
+                    true_expression - ref_expr_cl,
+                )
+                if ref_expr_cl is not None
+                else 0.0
+            ),
         }
         metrics["mse"].append(metrics_pert[pert]["mse"])
         metrics["pearson"].append(metrics_pert[pert]["pearson"])
         metrics["pearson_systema"].append(metrics_pert[pert]["pearson_systema"])
+        metrics["pearson_systema_cellline"].append(metrics_pert[pert]["pearson_systema_cellline"])
 
         if pert == CONTROL_CONDITION:
             metrics_pert[pert]["mse_de"] = 0.0
             metrics_pert[pert]["pearson_de"] = 0.0
             metrics_pert[pert]["pearson_systema_de"] = 0.0
+            metrics_pert[pert]["pearson_systema_cellline_de"] = 0.0
             continue
 
         de_gene_subset = (
@@ -123,11 +175,25 @@ def compute_metrics_with_systema(
             metrics_pert[pert]["mse_de"] = 0.0
             metrics_pert[pert]["pearson_de"] = 0.0
             metrics_pert[pert]["pearson_systema_de"] = 0.0
+            metrics_pert[pert]["pearson_systema_cellline_de"] = 0.0
             continue
 
         pred_de = predicted_rows[de_gene_subset].iloc[0].to_numpy(dtype=float)
         true_de = observed_rows[de_gene_subset].iloc[0].to_numpy(dtype=float)
-        ref_de = reference_vector[de_gene_subset].to_numpy(dtype=float)
+        if reference_by_split is not None:
+            ref_de = reference_by_split[split_value][de_gene_subset].to_numpy(dtype=float)
+            ref_de_cl = (
+                reference_by_split_cellline[ref_key][de_gene_subset].to_numpy(dtype=float)
+                if ref_expr_cl is not None
+                else None
+            )
+        else:
+            ref_de = reference_vector[de_gene_subset].to_numpy(dtype=float)
+            ref_de_cl = (
+                reference_by_cellline[cell_line_value][de_gene_subset].to_numpy(dtype=float)
+                if ref_expr_cl is not None
+                else None
+            )
 
         centered_pred_de = pred_de - ref_de
         centered_true_de = true_de - ref_de
@@ -135,10 +201,18 @@ def compute_metrics_with_systema(
         metrics_pert[pert]["mse_de"] = float(mse(pred_de, true_de))
         metrics_pert[pert]["pearson_de"] = _safe_pearson(pred_de, true_de)
         metrics_pert[pert]["pearson_systema_de"] = _safe_pearson(centered_pred_de, centered_true_de)
+        metrics_pert[pert]["pearson_systema_cellline_de"] = (
+            _safe_pearson(pred_de - ref_de_cl, true_de - ref_de_cl)
+            if ref_de_cl is not None
+            else 0.0
+        )
 
         metrics["mse_de"].append(metrics_pert[pert]["mse_de"])
         metrics["pearson_de"].append(metrics_pert[pert]["pearson_de"])
         metrics["pearson_systema_de"].append(metrics_pert[pert]["pearson_systema_de"])
+        metrics["pearson_systema_cellline_de"].append(
+            metrics_pert[pert]["pearson_systema_cellline_de"]
+        )
 
     metrics_mean = {
         metric_name: float(np.mean(values)) if values else 0.0 for metric_name, values in metrics.items()

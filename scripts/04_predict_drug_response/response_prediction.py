@@ -1326,18 +1326,23 @@ def predict_McFarland_with_CPA_profiles_CV(
     """
     Predict McFarland drug sensitivity using CPA fold splits.
 
-    Uses ``fold`` from CPA predicted profiles (``mcfarland_mean_post_all.csv`` /
-    ``mcfarland_mean_lfc_all.csv``) for outer CV. Observed and baseline profiles receive
-    the same fold labels. For each profile source, the model is trained and tested on
-    that source only (e.g. CPA post profiles for train and test when evaluating CPA).
+    Uses ``fold`` from predicted profiles (CPA / GEARS / scFoundation ``mcfarland_mean_*_all.csv``)
+    for outer CV. Observed and baseline profiles receive CPA fold labels. For each profile
+    source, the model is trained and tested on that source only.
 
     Saves regression scores, per-sample predictions, and feature-importance pickles for
-    observed, CPA-predicted, no-effect, and average-effect profiles.
+    observed, CPA-, GEARS-, and scFoundation-predicted, no-effect, and average-effect profiles.
     """
     mean_observed_pre, mean_observed_post, mean_observed_lfc = get_McFarland_mean_data()
     mean_cpa_post, mean_cpa_lfc = get_McFarland_CPA_predictions()
     mean_cpa_post = mean_cpa_post.copy()
     mean_cpa_lfc = mean_cpa_lfc.copy()
+    mean_gears_post, mean_gears_lfc = get_McFarland_GEARS_predictions()
+    mean_gears_post = mean_gears_post.copy()
+    mean_gears_lfc = mean_gears_lfc.copy()
+    mean_scfoundation_post, mean_scfoundation_lfc = get_McFarland_scFoundation_predictions()
+    mean_scfoundation_post = mean_scfoundation_post.copy()
+    mean_scfoundation_lfc = mean_scfoundation_lfc.copy()
     mean_no_effect_post = get_McFarland_no_effect_predictions()
     mean_avg_post, mean_avg_lfc = get_McFarland_average_effect_predictions()
     cellline_sensitivity_info = get_McFarland_sensitivityinfo_for_profile_merge()
@@ -1356,6 +1361,10 @@ def predict_McFarland_with_CPA_profiles_CV(
     mean_observed_lfc = _merge_sensitivity(mean_observed_lfc)
     mean_cpa_post = _merge_sensitivity(mean_cpa_post)
     mean_cpa_lfc = _merge_sensitivity(mean_cpa_lfc)
+    mean_gears_post = _merge_sensitivity(mean_gears_post)
+    mean_gears_lfc = _merge_sensitivity(mean_gears_lfc)
+    mean_scfoundation_post = _merge_sensitivity(mean_scfoundation_post)
+    mean_scfoundation_lfc = _merge_sensitivity(mean_scfoundation_lfc)
     mean_no_effect_post = _merge_sensitivity(mean_no_effect_post)
     mean_avg_post = _merge_sensitivity(mean_avg_post)
     mean_avg_lfc = _merge_sensitivity(mean_avg_lfc)
@@ -1365,6 +1374,14 @@ def predict_McFarland_with_CPA_profiles_CV(
     mean_observed_lfc = filter_on_coefficient_of_variation(mean_observed_lfc, groupby=['condition'])
     mean_cpa_post = filter_on_coefficient_of_variation(mean_cpa_post, groupby=['condition'])
     mean_cpa_lfc = filter_on_coefficient_of_variation(mean_cpa_lfc, groupby=['condition'])
+    mean_gears_post = filter_on_coefficient_of_variation(mean_gears_post, groupby=['condition'])
+    mean_gears_lfc = filter_on_coefficient_of_variation(mean_gears_lfc, groupby=['condition'])
+    mean_scfoundation_post = filter_on_coefficient_of_variation(
+        mean_scfoundation_post, groupby=['condition']
+    )
+    mean_scfoundation_lfc = filter_on_coefficient_of_variation(
+        mean_scfoundation_lfc, groupby=['condition']
+    )
     mean_no_effect_post = filter_on_coefficient_of_variation(mean_no_effect_post, groupby=['condition'])
     mean_avg_post = filter_on_coefficient_of_variation(mean_avg_post, groupby=['condition'])
     mean_avg_lfc = filter_on_coefficient_of_variation(mean_avg_lfc, groupby=['condition'])
@@ -1379,11 +1396,35 @@ def predict_McFarland_with_CPA_profiles_CV(
     mean_cpa_post = align_mcfarland_profiles_to_fold_keys(mean_cpa_post, cpa_fold_keys)
     mean_cpa_lfc = align_mcfarland_profiles_to_fold_keys(mean_cpa_lfc, cpa_fold_keys)
 
+    gears_fold_keys = mean_gears_post[['cell_line', 'condition', 'fold']].drop_duplicates()
+    mean_gears_post = align_mcfarland_profiles_to_fold_keys(mean_gears_post, gears_fold_keys)
+    mean_gears_lfc = align_mcfarland_profiles_to_fold_keys(mean_gears_lfc, gears_fold_keys)
+
+    scfoundation_fold_keys = mean_scfoundation_post[['cell_line', 'condition', 'fold']].drop_duplicates()
+    mean_scfoundation_post = align_mcfarland_profiles_to_fold_keys(
+        mean_scfoundation_post, scfoundation_fold_keys
+    )
+    mean_scfoundation_lfc = align_mcfarland_profiles_to_fold_keys(
+        mean_scfoundation_lfc, scfoundation_fold_keys
+    )
+
     log_mcfarland_profile_expression_difference(
         mean_observed_post, mean_cpa_post, 'CPA post-treatment'
     )
     log_mcfarland_profile_expression_difference(
         mean_observed_lfc, mean_cpa_lfc, 'CPA LFC'
+    )
+    log_mcfarland_profile_expression_difference(
+        mean_observed_post, mean_gears_post, 'GEARS post-treatment'
+    )
+    log_mcfarland_profile_expression_difference(
+        mean_observed_lfc, mean_gears_lfc, 'GEARS LFC'
+    )
+    log_mcfarland_profile_expression_difference(
+        mean_observed_post, mean_scfoundation_post, 'scFoundation post-treatment'
+    )
+    log_mcfarland_profile_expression_difference(
+        mean_observed_lfc, mean_scfoundation_lfc, 'scFoundation LFC'
     )
 
     _meta_cols = {
@@ -1409,6 +1450,18 @@ def predict_McFarland_with_CPA_profiles_CV(
     )
     mean_cpa_lfc_with_y = add_y_and_normalize(
         mean_cpa_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_gears_post_with_y = add_y_and_normalize(
+        mean_gears_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_gears_lfc_with_y = add_y_and_normalize(
+        mean_gears_lfc, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_scfoundation_post_with_y = add_y_and_normalize(
+        mean_scfoundation_post, 'sens', normalize=False, keep=feature_to_keep
+    )
+    mean_scfoundation_lfc_with_y = add_y_and_normalize(
+        mean_scfoundation_lfc, 'sens', normalize=False, keep=feature_to_keep
     )
     mean_no_effect_post_with_y = add_y_and_normalize(
         mean_no_effect_post, 'sens', normalize=False, keep=feature_to_keep
@@ -1436,6 +1489,10 @@ def predict_McFarland_with_CPA_profiles_CV(
         ('observed', 'LFC', mean_observed_lfc_with_y, True),
         ('CPA_predicted', 'post_treatment', mean_cpa_post_with_y, False),
         ('CPA_predicted', 'LFC', mean_cpa_lfc_with_y, False),
+        ('GEARS_predicted', 'post_treatment', mean_gears_post_with_y, False),
+        ('GEARS_predicted', 'LFC', mean_gears_lfc_with_y, False),
+        ('scFoundation_predicted', 'post_treatment', mean_scfoundation_post_with_y, False),
+        ('scFoundation_predicted', 'LFC', mean_scfoundation_lfc_with_y, False),
         ('no_effect', 'post_treatment', mean_no_effect_post_with_y, True),
         ('no_effect', 'LFC', mean_no_effect_lfc_with_y, True),
         ('average_effect', 'post_treatment', mean_avg_post_with_y, True),
