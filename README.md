@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/1094815471.svg)](https://doi.org/10.5281/zenodo.22026963)
+
 # Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models
 
 This repository contains the code to reproduce the analyses and figures for the study "Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models" ([under review](link)).
