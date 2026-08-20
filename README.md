@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/1094815471.svg)](https://doi.org/10.5281/zenodo.22026963)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22026963.svg)](https://doi.org/10.5281/zenodo.22026963)
 
 # Downstream Drug Response Prediction Reveals Biological Utility of Perturbation Response Models
 
