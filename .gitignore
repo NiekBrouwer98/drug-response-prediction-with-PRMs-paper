@@ -9,6 +9,7 @@ figures/submission_figures/*
 !figures/submission_figures/upload/*.pdf
 !figures/submission_figures/*.pdf
 figures/submission_figures/*_build.pdf
+figures/submission_figures/Table_stratified_predictions.pdf
 figures/submission_figures/upload/Thumbs.db
 results/*
 !results/.gitkeep
