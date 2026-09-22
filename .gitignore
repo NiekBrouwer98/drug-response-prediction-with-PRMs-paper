@@ -1,14 +1,25 @@
 # Directories to skip (ignore contents but keep directory structure)
 figures/*
 !figures/.gitkeep
+# Manuscript submission assets (PDFs + journal upload TIFFs)
+!figures/submission_figures/
+figures/submission_figures/*
+!figures/submission_figures/upload/
+!figures/submission_figures/upload/*.tiff
+!figures/submission_figures/upload/*.pdf
+!figures/submission_figures/*.pdf
+figures/submission_figures/*_build.pdf
+figures/submission_figures/upload/Thumbs.db
 results/*
 !results/.gitkeep
 data/*
+data-copy/
 !data/.gitkeep
 *cached_output_files/
 *gsea_results/
 data.zip
 logs/
+Thumbs.db
 
 gene_selection.csv
 *.sh
