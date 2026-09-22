@@ -1,4 +1,4 @@
-"""Leave-one-split Systema reference vectors for profile evaluation."""
+"""Systema reference vectors for profile evaluation."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Iterable
 import pandas as pd
 
 SPLIT_COLUMN_ALIASES: tuple[str, ...] = ('fold', 'split')
+DEFAULT_CONTROL_CONDITIONS: frozenset[str] = frozenset({'ctrl', 'control', 'vehicle', 'dmso'})
 
 
 def resolve_split_column(df: pd.DataFrame) -> str | None:
@@ -14,6 +15,21 @@ def resolve_split_column(df: pd.DataFrame) -> str | None:
         if col in df.columns:
             return col
     return None
+
+
+def normalize_split_values(df: pd.DataFrame, split_col: str | None = None) -> pd.DataFrame:
+    """Coerce fold/split labels to int (handles ``split_0`` from PRnet)."""
+    split_col = split_col or resolve_split_column(df)
+    if split_col is None:
+        return df
+    out = df.copy()
+    series = out[split_col]
+    if pd.api.types.is_string_dtype(series) or series.dtype == object:
+        extracted = series.astype(str).str.extract(r'(\d+)', expand=False)
+        out[split_col] = extracted.astype(int)
+    else:
+        out[split_col] = series.astype(int)
+    return out
 
 
 def _normalize_profile_keys(df: pd.DataFrame) -> pd.DataFrame:
@@ -27,7 +43,7 @@ def _normalize_profile_keys(df: pd.DataFrame) -> pd.DataFrame:
         )
     if 'condition' in out.columns:
         out['condition'] = out['condition'].astype(str).str.strip()
-    return out
+    return normalize_split_values(out)
 
 
 def resolve_cell_line_column(
@@ -47,6 +63,43 @@ def _cell_line_col_after_normalize(
     if cell_line_col is not None and cell_line_col in df.columns:
         return cell_line_col
     return resolve_cell_line_column(df)
+
+
+def _is_control_condition(series: pd.Series) -> pd.Series:
+    return series.astype(str).str.strip().str.lower().isin(DEFAULT_CONTROL_CONDITIONS)
+
+
+def reference_vector_all_non_control(
+    observations: pd.DataFrame,
+    gene_columns: list[str],
+    cell_line_col: str | None = None,
+) -> pd.Series:
+    """Single mean gene vector over all non-control (cell_line, condition) pairs."""
+    observations = _normalize_profile_keys(observations)
+    cell_line_col = _cell_line_col_after_normalize(observations, cell_line_col)
+    obs = observations.loc[~_is_control_condition(observations['condition'])].copy()
+    obs = obs.drop_duplicates(subset=[cell_line_col, 'condition'], keep='first')
+    if obs.empty:
+        raise ValueError('No non-control observations available to compute Systema reference vector.')
+    return obs[gene_columns].mean(axis=0)
+
+
+def reference_vectors_per_cell_line_non_control(
+    observations: pd.DataFrame,
+    gene_columns: list[str],
+    cell_line_col: str | None = None,
+) -> dict[str, pd.Series]:
+    """Mean observed profile per cell line (non-control), one vector per cell line."""
+    observations = _normalize_profile_keys(observations)
+    cell_line_col = _cell_line_col_after_normalize(observations, cell_line_col)
+    obs = observations.loc[~_is_control_condition(observations['condition'])].copy()
+    obs = obs.drop_duplicates(subset=[cell_line_col, 'condition'], keep='first')
+    refs: dict[str, pd.Series] = {}
+    for cell_line in obs[cell_line_col].unique():
+        subset = obs[obs[cell_line_col] == cell_line]
+        if not subset.empty:
+            refs[str(cell_line)] = subset[gene_columns].mean(axis=0)
+    return refs
 
 
 def leave_one_split_reference_vectors(
@@ -93,24 +146,6 @@ def leave_one_split_reference_vectors_per_cell_line(
             if other.empty:
                 continue
             refs[(int(split_value), str(cell_line))] = other[gene_columns].mean(axis=0)
-    return refs
-
-
-def reference_vectors_per_cell_line_non_control(
-    observations: pd.DataFrame,
-    gene_columns: list[str],
-    cell_line_col: str | None = None,
-    control_condition: str = 'ctrl',
-) -> dict[str, pd.Series]:
-    """Mean observed profile per cell line (non-control), for datasets without fold labels."""
-    observations = _normalize_profile_keys(observations)
-    cell_line_col = _cell_line_col_after_normalize(observations, cell_line_col)
-    obs = observations[observations['condition'] != control_condition]
-    refs: dict[str, pd.Series] = {}
-    for cell_line in obs[cell_line_col].unique():
-        subset = obs[obs[cell_line_col] == cell_line]
-        if not subset.empty:
-            refs[str(cell_line)] = subset[gene_columns].mean(axis=0)
     return refs
 
 

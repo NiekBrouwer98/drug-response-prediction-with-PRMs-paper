@@ -46,6 +46,8 @@ class Config:
         self.GEARS_MODEL = "GEARS"
         self.SCFOUNDATION_MODEL = "scfoundation"
         self.CPA_MODEL = "CPA"
+        self.CHEMCPA_MODEL = "chemCPA"
+        self.PRNET_MODEL = "PRnet"
         
         # Results subdirectories
         self.RESULTS_01_DIR = self.RESULTS_DIR / "01_process_measured_profiles"
@@ -65,6 +67,8 @@ class Config:
         self.MIN_CELLS_PER_CONDITION = 10
         self.MIN_GENES_PER_CELL = 200
         self.MIN_CELLS_PER_GENE = 3
+        self.MAX_PCT_MITO = 20.0
+        self.DOUBLET_GMM_PROB_MAX = 0.5
         
         # Feature selection parameters
         self.DEFAULT_N_FEATURES = 1000

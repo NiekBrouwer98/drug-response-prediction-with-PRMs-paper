@@ -20,6 +20,7 @@ from mcfarland_profile_metrics import (
     pair_metrics_to_long_df,
     prepare_predictions_for_systema,
 )
+from prediction_io import drop_control_rows, load_cpa_post, load_chemcpa_post, load_prnet_post
 from utils import (
     ensure_directories_exist,
     log_script_end,
@@ -39,14 +40,6 @@ ensure_directories_exist(data_dir, results_dir, figures_dir)
 DE_GENES_PATH = os.path.join(results_dir, 'mcfarland_de_genes.csv')
 
 
-def _resolve_cpa_post_path() -> str:
-    for subdir in ('CPA_predictions', 'cpa'):
-        path = os.path.join(data_dir, subdir, 'mcfarland_mean_post_all.csv')
-        if os.path.exists(path):
-            return path
-    raise FileNotFoundError('McFarland CPA post file mcfarland_mean_post_all.csv not found')
-
-
 def _load_or_compute_de_genes() -> pd.DataFrame:
     if os.path.exists(DE_GENES_PATH):
         return pd.read_csv(DE_GENES_PATH)
@@ -57,7 +50,7 @@ def _load_or_compute_de_genes() -> pd.DataFrame:
 
 
 def _split_template_cpa() -> pd.DataFrame:
-    return pd.read_csv(_resolve_cpa_post_path())
+    return load_cpa_post(data_dir, 'mcfarland')
 
 
 def _evaluate_and_save(
@@ -82,7 +75,7 @@ def _evaluate_and_save(
 
 
 def evaluate_cpa_predictions() -> None:
-    predictions = pd.read_csv(_resolve_cpa_post_path())
+    predictions = drop_control_rows(load_cpa_post(data_dir, 'mcfarland'))
     observations = load_mcfarland_observed_post(data_dir)
     de_genes = _load_or_compute_de_genes()
     template = _split_template_cpa()
@@ -93,6 +86,34 @@ def evaluate_cpa_predictions() -> None:
         'CPA',
         'mcfarland_CPA_systema_outcomes.csv',
         split_template=template,
+    )
+
+
+def evaluate_chemcpa_predictions() -> None:
+    predictions = drop_control_rows(load_chemcpa_post(data_dir, 'mcfarland'))
+    observations = load_mcfarland_observed_post(data_dir)
+    de_genes = _load_or_compute_de_genes()
+    _evaluate_and_save(
+        predictions,
+        observations,
+        de_genes,
+        'chemCPA',
+        'mcfarland_chemCPA_systema_outcomes.csv',
+        split_template=predictions,
+    )
+
+
+def evaluate_prnet_predictions() -> None:
+    predictions = drop_control_rows(load_prnet_post(data_dir, 'mcfarland'))
+    observations = load_mcfarland_observed_post(data_dir)
+    de_genes = _load_or_compute_de_genes()
+    _evaluate_and_save(
+        predictions,
+        observations,
+        de_genes,
+        'PRnet',
+        'mcfarland_PRnet_systema_outcomes.csv',
+        split_template=predictions,
     )
 
 
@@ -153,6 +174,10 @@ def main() -> None:
     try:
         logger.info('Evaluating McFarland CPA predictions (Systema metrics)...')
         evaluate_cpa_predictions()
+        logger.info('Evaluating McFarland chemCPA predictions (Systema)...')
+        evaluate_chemcpa_predictions()
+        logger.info('Evaluating McFarland PRnet predictions (Systema)...')
+        evaluate_prnet_predictions()
         logger.info('Evaluating McFarland GEARS predictions (Systema)...')
         evaluate_gears_predictions()
         logger.info('Evaluating McFarland scFoundation predictions (Systema)...')

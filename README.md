@@ -7,141 +7,100 @@ This repository contains the code to reproduce the analyses and figures for the 
 ## Project Structure
 
 ```
-drug_response_prediction/
+drug-response-prediction/
 ├── data/                          # Processed datasets and predictions
-│   ├── sciplex_raw/               # Raw sciplex3 dataset
-│   ├── sciplex_processed/         # Processed sciplex3 dataset
-│   ├── mcfarland_raw/             # Raw McFarland dataset
-│   ├── mcfarland_processed/       # Processed McFarland dataset
-│   ├── no_effect_predictions/     # No Effect Baseline model predictions
-│   ├── average_effect_predictions/# Average Effect Baseline model 
-│   ├── CPA_predictions/           # CPA model predictions
-│   ├── GEARS_predictions/         # GEARS model predictions
-│   ├── scfoundation_predictions/  # scFoundation predictions
-│   └── measured_pseudobulk/       # Measured gene expression data as pseudobulks
 ├── figures/                       # Generated figures and manuscript files
-├── resources/                     # Reference data and annotations
-├── results/                       # Analysis results and outputs
-└── scripts/                       # Analysis scripts organized by workflow stage
-    ├── 01_process_mesured_profiles/    # Data preprocessing and loading
-    ├── 02_process_predicted_profiles/   # Processing model predictions
-    ├── 03_evaluate_predicted_profiles/  # Model evaluation and comparison
-    └── 04_predict_drug_response/        # Drug response prediction
+├── resources/                     # Reference tables (SMILES, splits, sensitivity)
+├── results/                       # Analysis outputs
+├── scripts/                       # Pipeline stages
+│   ├── 01_process_measured_profiles/
+│   ├── 02_process_predicted_profiles/
+│   ├── 03_evaluate_predicted_profiles/
+│   └── 04_predict_drug_response/
+├── config.py                      # Paths and analysis parameters
+├── utils.py                       # Shared logging / directory helpers
+└── run_*.sh                       # Slurm entrypoints (submit from repo root)
 ```
 
 ## Dependencies
 
-The project requires Python 3.10 and the following key listed in `environment.yml`.
+Python 3.10 and packages listed in `environment.yml`.
 
 ## Installation
 
-### Option 1: Using the Provided Container (Recommended)
-**Note**: The container automatically activates the `drug-response-prediction` conda environment, so you don't need to manually activate it.
+### Option 1: Apptainer container (recommended)
 
-1. Clone the repository:
+The container activates the `drug-response-prediction` conda environment automatically.
+
 ```bash
 git clone <repository-url>
-cd drug_response_prediction
-```
-
-2. Build the Singularity/Apptainer container:
-```bash
-# Build the container from the definition file
+cd drug-response-prediction
 apptainer build drug-response-prediction.sif drug-response-prediction.def
+cp config_example.yaml config.yaml   # optional path overrides
 ```
 
-3. Setup configuration (optional):
-```bash
-# Copy example configuration
-cp config_example.yaml config.yaml
-# Edit config.yaml to match your system paths
-```
+### Option 2: Conda
 
-### Option 2: Manual Conda Installation
-
-If you prefer to use conda directly:
-
-1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd drug_response_prediction
-```
-
-2. Create the conda environment:
-```bash
+cd drug-response-prediction
 conda env create -f environment.yml
 conda activate drug-response-prediction
-```
-
-3. Setup configuration (optional):
-```bash
-# Copy example configuration
-cp config_example.yaml config.yaml
-# Edit config.yaml to match your system paths
+cp config_example.yaml config.yaml   # optional
 ```
 
 ## Configuration
 
-The project uses a centralized configuration system for managing paths and parameters:
-
-- **`config.py`**: Main configuration module with default settings
-- **`config_example.yaml`**: Example configuration file for customization
-- **`scripts/utils.py`**: Utility functions for backward compatibility
-
-### Quick Setup
+- **`config.py`**: Project paths and defaults (`setup_project()`, `Config`)
+- **`config_example.yaml`**: Optional overrides
+- **`utils.py`**: Logging and directory helpers used by scripts
 
 ```python
 from config import setup_project
-config = setup_project()  # Creates directories and sets up logging
-```
-
-### Custom Configuration
-
-```python
-from config import Config
-config = Config('config.yaml')  # Load custom configuration
+config = setup_project()
 ```
 
 ## Datasets
-To facilitate reproduction, we have made all processed files available here: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
 
-The raw datasets were retrieved from their original source:
-- [McFarland et al. (2020)](https://figshare.com/s/139f64b495dea9d88c70): Large-scale drug sensitivity screening across cancer cell lines 
-- [SciPlex, Srivatsan et al. (2020)](https://figshare.com/s/139f64b495dea9d88c70): Single-cell perturbation dataset with drug treatments
+Processed files for reproduction: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
+
+Raw sources:
+- [McFarland et al. (2020)](https://figshare.com/s/139f64b495dea9d88c70)
+- [SciPlex / Srivatsan et al. (2020)](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE139944) (this repo reads the [scPerturb](http://projects.sanderlab.org/scperturb/) `Srivatsan_2019_raw.h5ad`)
 
 ## Usage
 
-The analysis follows a sequential workflow:
-
-#### 1. Process Measured Profiles
-**Using the container:**
-```bash
-apptainer exec drug-response-prediction.sif python scripts/01_process_measured_profiles/mcfarland_data_loaders.py
-apptainer exec drug-response-prediction.sif python scripts/01_process_measured_profiles/sciplex_data_loaders.py
-```
-
-#### 2. Process Predicted Profiles
-**Using the container:**
+Stages are sequential. Prefer the Slurm wrappers at the repo root; each stage README lists the Python entrypoints.
 
 ```bash
-apptainer exec drug-response-prediction.sif python scripts/02_process_predicted_profiles/process_predictions_sciplex.py
+# 01 — annotate / split measured profiles (+ optional QC count pseudobulks)
+sbatch run_create_sciplex_splits.sh
+sbatch run_create_mcfarland_splits.sh
+sbatch run_qc_and_count_pseudobulk.sh
+
+# 02 — log-mean observed pseudobulks + average/no-effect baselines
+sbatch run_rerun_pseudobulk.sh
+
+# 03 — reconstruction metrics (CPA / chemCPA / PRnet / GEARS / scFoundation / baselines)
+sbatch run_rerun_profile_eval.sh
+
+# 04 — measured T1–T4 task CV + predicted-profile split CV + figures
+bash scripts/04_predict_drug_response/submit_measured_task_cv.sh
+DATASET=both sbatch scripts/04_predict_drug_response/run_predicted_smiles_split_cv.sh
+DATASET=both sbatch scripts/04_predict_drug_response/run_train_measured_test_predicted_split_cv.sh
+sbatch run_rerun_drug_response.sh   # or run figure scripts directly (see stage READMEs)
 ```
 
-#### 3. Evaluate Predicted Profiles
-**Using the container:**
+Interactive / single-script runs:
+
 ```bash
-apptainer exec drug-response-prediction.sif python scripts/03_evaluate_predicted_profiles/evaluate_predictions_sciplex.py
+apptainer exec drug-response-prediction.sif \
+  python scripts/01_process_measured_profiles/create_sciplex_splits.py
 ```
 
-#### 4. Predict Drug Response
-**Using the container:**
-```bash
-apptainer exec drug-response-prediction.sif python scripts/04_predict_drug_response/response_prediction.py
-```
+See `scripts/*/README.md` and `resources/README.md` for file-level detail.
 
 ## Citation
-
-If you use this code in your research, please cite:
 
 ```bibtex
 @article{brouwer2026drug,
@@ -154,13 +113,12 @@ If you use this code in your research, please cite:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT — see `LICENSE`.
 
 ## Contact
 
-For questions or issues, please contact:
-- Niek Brouwer: n.brouwer-1@tudelft.nl
+Niek Brouwer: n.brouwer-1@tudelft.nl
 
 ## Acknowledgments
 
-We thank the developers of CPA, GEARS, and scFoundation for making their models publicly available. This research is part of the Oncode Accelerator Project that has received funding from the Dutch National Growth Fund (NGF).
+We thank the developers of CPA, GEARS, and scFoundation for making their models publicly available. This research is part of the Oncode Accelerator Project funded by the Dutch National Growth Fund (NGF).

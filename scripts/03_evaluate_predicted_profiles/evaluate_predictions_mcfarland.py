@@ -20,6 +20,7 @@ from mcfarland_profile_metrics import (
     pair_metrics_to_long_df,
     prepare_predictions_for_evaluation,
 )
+from prediction_io import drop_control_rows, load_cpa_post, load_chemcpa_post, load_prnet_post
 from utils import (
     ensure_directories_exist,
     log_script_end,
@@ -37,14 +38,6 @@ figures_dir = str(config.FIGURES_03_DIR)
 ensure_directories_exist(data_dir, results_dir, figures_dir)
 
 DE_GENES_PATH = os.path.join(results_dir, 'mcfarland_de_genes.csv')
-
-
-def _resolve_cpa_post_path() -> str:
-    for subdir in ('CPA_predictions', 'cpa'):
-        path = os.path.join(data_dir, subdir, 'mcfarland_mean_post_all.csv')
-        if os.path.exists(path):
-            return path
-    raise FileNotFoundError('McFarland CPA post file mcfarland_mean_post_all.csv not found')
 
 
 def _load_or_compute_de_genes() -> pd.DataFrame:
@@ -75,10 +68,26 @@ def _evaluate_and_save(
 
 
 def evaluate_cpa_predictions() -> None:
-    predictions = pd.read_csv(_resolve_cpa_post_path())
+    predictions = drop_control_rows(load_cpa_post(data_dir, 'mcfarland'))
     observations = load_mcfarland_observed_post(data_dir)
     de_genes = _load_or_compute_de_genes()
     _evaluate_and_save(predictions, observations, de_genes, 'CPA', 'mcfarland_CPA_outcomes.csv')
+
+
+def evaluate_chemcpa_predictions() -> None:
+    predictions = drop_control_rows(load_chemcpa_post(data_dir, 'mcfarland'))
+    observations = load_mcfarland_observed_post(data_dir)
+    de_genes = _load_or_compute_de_genes()
+    _evaluate_and_save(
+        predictions, observations, de_genes, 'chemCPA', 'mcfarland_chemCPA_outcomes.csv'
+    )
+
+
+def evaluate_prnet_predictions() -> None:
+    predictions = drop_control_rows(load_prnet_post(data_dir, 'mcfarland'))
+    observations = load_mcfarland_observed_post(data_dir)
+    de_genes = _load_or_compute_de_genes()
+    _evaluate_and_save(predictions, observations, de_genes, 'PRnet', 'mcfarland_PRnet_outcomes.csv')
 
 
 def evaluate_gears_predictions() -> None:
@@ -120,6 +129,10 @@ def main() -> None:
     try:
         logger.info('Evaluating McFarland CPA predictions (MSE / Pearson)...')
         evaluate_cpa_predictions()
+        logger.info('Evaluating McFarland chemCPA predictions...')
+        evaluate_chemcpa_predictions()
+        logger.info('Evaluating McFarland PRnet predictions...')
+        evaluate_prnet_predictions()
         logger.info('Evaluating McFarland GEARS predictions...')
         evaluate_gears_predictions()
         logger.info('Evaluating McFarland scFoundation predictions...')

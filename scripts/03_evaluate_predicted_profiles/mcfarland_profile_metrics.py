@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
@@ -10,9 +12,9 @@ from sklearn.metrics import mean_squared_error as mse
 
 from systema_reference import (
     attach_split_from_template,
-    leave_one_split_reference_vectors,
-    leave_one_split_reference_vectors_per_cell_line,
-    observation_profiles_with_split,
+    normalize_split_values,
+    reference_vector_all_non_control,
+    reference_vectors_per_cell_line_non_control,
     resolve_cell_line_column,
     resolve_split_column,
 )
@@ -25,12 +27,105 @@ META_COLUMNS = frozenset(
         'condition',
         'tissue',
         'fold',
+        'split',
         'n_cells',
         'sens',
         'target',
         'sens_label',
+        'drug',
+        'dose',
+        'cpa_pert',
+        'dataset',
+        'perturbation',
+        'product_name',
+        'test_condition',
+        'mask',
+        'gene_name',
     }
 )
+
+
+def normalize_sciplex_product_name(names: pd.Series) -> pd.Series:
+    return names.astype(str).str.strip().str.replace(r'\s+', '', regex=True)
+
+
+def load_sciplex_de_genes(
+    results_dir: str,
+    cell_line: str,
+    resources_dir: str | None = None,
+    *,
+    condition_key: str = 'product_name',
+) -> pd.DataFrame:
+    """Load SciPlex DE genes with ``condition`` aligned to profile ``condition`` keys."""
+    de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv')).copy()
+    de_genes['condition'] = normalize_sciplex_product_name(de_genes['condition'])
+
+    if condition_key == 'gene_target':
+        if resources_dir is None:
+            raise ValueError('resources_dir is required when condition_key="gene_target"')
+        pert_to_drug = pd.read_csv(
+            os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),
+            index_col=0,
+        )
+        pert_to_drug['product_name_key'] = normalize_sciplex_product_name(pert_to_drug['product_name'])
+        pert_to_drug = pert_to_drug.drop_duplicates(subset='product_name_key', keep='first')
+        target_by_key = pert_to_drug.set_index('product_name_key')['target']
+        de_genes['condition'] = de_genes['condition'].map(target_by_key)
+        de_genes = de_genes.dropna(subset=['condition'])
+    elif condition_key != 'product_name':
+        raise ValueError(f'Unknown condition_key: {condition_key!r}')
+
+    de_genes['cell_type'] = cell_line.upper()
+    de_genes['cell_line'] = cell_line.upper()
+    return de_genes
+
+
+def map_sciplex_conditions_to_gene_targets(df: pd.DataFrame, resources_dir: str) -> pd.DataFrame:
+    """Map SciPlex drug ``condition`` labels to GEARS/scFoundation gene-target keys.
+
+    Predictions from GEARS/scFoundation use targets like ``ABL1+ctrl``, while observed
+    SciPlex pseudobulks use product names. Without this remapping, pair matching finds
+    zero overlapping conditions and Systema outcome tables are empty.
+    """
+    if 'condition' not in df.columns:
+        raise ValueError('Expected a condition column to map to gene targets')
+
+    pert_to_drug = pd.read_csv(
+        os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),
+        index_col=0,
+    )
+    pert_to_drug['product_name_key'] = normalize_sciplex_product_name(pert_to_drug['product_name'])
+    target_by_key = (
+        pert_to_drug.drop_duplicates(subset='product_name_key', keep='first')
+        .set_index('product_name_key')['target']
+    )
+
+    out = df.copy()
+    mapped = normalize_sciplex_product_name(out['condition']).map(target_by_key)
+    n_unmapped = int(mapped.isna().sum())
+    if n_unmapped:
+        warnings.warn(
+            f'Dropping {n_unmapped} SciPlex rows without a gene-target mapping '
+            'in sciplex_drug_to_perturbation.csv',
+            stacklevel=2,
+        )
+    out = out.loc[mapped.notna()].copy()
+    out['condition'] = mapped.loc[mapped.notna()].to_numpy()
+
+    cell_col = 'cell_line' if 'cell_line' in out.columns else (
+        'cell_type' if 'cell_type' in out.columns else None
+    )
+    if cell_col is not None:
+        before = len(out)
+        out = out.drop_duplicates(subset=[cell_col, 'condition'], keep='first')
+        dropped = before - len(out)
+        if dropped:
+            warnings.warn(
+                f'Dropped {dropped} duplicate SciPlex (cell, gene-target) rows '
+                'after drug→target mapping',
+                stacklevel=2,
+            )
+    return out
 
 
 def normalize_mcfarland_profiles(df: pd.DataFrame) -> pd.DataFrame:
@@ -43,21 +138,37 @@ def normalize_mcfarland_profiles(df: pd.DataFrame) -> pd.DataFrame:
         )
     if 'condition' in out.columns:
         out['condition'] = out['condition'].astype(str).str.strip()
-    return out
+    return normalize_split_values(out)
+
+
+def _gene_mean_agg(df: pd.DataFrame, gene_columns: list[str], extra_first: tuple[str, ...] = ()) -> dict[str, str]:
+    agg: dict[str, str] = {g: 'mean' for g in gene_columns if g in df.columns}
+    for col in extra_first:
+        if col in df.columns and col not in agg:
+            agg[col] = 'first'
+    return agg
 
 
 def collapse_profile_folds(df: pd.DataFrame, gene_columns: list[str]) -> pd.DataFrame:
-    """Average fold-specific expression to one profile per (cell_line, condition)."""
+    """Average fold/split/drug-specific expression to one profile per (cell_line, condition)."""
     df = normalize_mcfarland_profiles(df)
-    meta_present = [c for c in ('cell_line', 'condition', 'tissue') if c in df.columns]
-    if 'fold' not in df.columns:
-        return df.drop_duplicates(subset=['cell_line', 'condition'], keep='first')
+    extra = ('tissue',) if 'tissue' in df.columns else ()
+    return df.groupby(['cell_line', 'condition'], as_index=False).agg(
+        _gene_mean_agg(df, gene_columns, extra_first=extra)
+    )
 
-    agg: dict[str, str] = {g: 'mean' for g in gene_columns if g in df.columns}
-    for col in meta_present:
-        agg[col] = 'first'
-    collapsed = df.groupby(['cell_line', 'condition'], as_index=False).agg(agg)
-    return collapsed
+
+def collapse_within_split(df: pd.DataFrame, gene_columns: list[str]) -> pd.DataFrame:
+    """Average duplicate drugs (or rows) within each (cell_line, condition, split)."""
+    df = normalize_mcfarland_profiles(df)
+    split_col = resolve_split_column(df)
+    keys = ['cell_line', 'condition']
+    if split_col is not None:
+        keys.append(split_col)
+    if not df.duplicated(subset=keys).any():
+        return df
+    extra = ('tissue',) if 'tissue' in df.columns else ()
+    return df.groupby(keys, as_index=False).agg(_gene_mean_agg(df, gene_columns, extra_first=extra))
 
 
 def compute_mcfarland_de_genes_from_lfc(
@@ -102,16 +213,36 @@ def _get_common_gene_columns(
 
 
 def _safe_pearson(x: np.ndarray, y: np.ndarray) -> float:
-    val = pearsonr(x, y)[0]
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        val = pearsonr(x, y)[0]
     return 0.0 if np.isnan(val) else float(val)
+
+
+def _profiles_for_matching(
+    df: pd.DataFrame,
+    *,
+    sciplex_normalize_condition: bool = False,
+) -> pd.DataFrame:
+    out = normalize_mcfarland_profiles(df)
+    if sciplex_normalize_condition and 'condition' in out.columns:
+        out = out.copy()
+        out['condition'] = normalize_sciplex_product_name(out['condition'])
+    return out
 
 
 def _iter_matched_pairs(
     predictions: pd.DataFrame,
     observations: pd.DataFrame,
+    *,
+    sciplex_normalize_condition: bool = False,
 ) -> list[tuple[str, str, pd.Series, pd.Series]]:
-    predictions = normalize_mcfarland_profiles(predictions)
-    observations = normalize_mcfarland_profiles(observations)
+    predictions = _profiles_for_matching(
+        predictions, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    observations = _profiles_for_matching(
+        observations, sciplex_normalize_condition=sciplex_normalize_condition
+    )
     keys = ['cell_line', 'condition']
     pred = predictions.drop_duplicates(subset=keys, keep='first')
     obs = observations.drop_duplicates(subset=keys, keep='first')
@@ -128,9 +259,15 @@ def _iter_matched_pairs_with_fold(
     predictions: pd.DataFrame,
     observations: pd.DataFrame,
     split_col: str,
+    *,
+    sciplex_normalize_condition: bool = False,
 ) -> list[tuple[str, str, int, pd.Series, pd.Series]]:
-    predictions = normalize_mcfarland_profiles(predictions)
-    observations = normalize_mcfarland_profiles(observations)
+    predictions = _profiles_for_matching(
+        predictions, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    observations = _profiles_for_matching(
+        observations, sciplex_normalize_condition=sciplex_normalize_condition
+    )
     obs = observations.drop_duplicates(subset=['cell_line', 'condition'], keep='first')
     pairs: list[tuple[str, str, int, pd.Series, pd.Series]] = []
     for _, pred_row in predictions.iterrows():
@@ -164,13 +301,28 @@ def compute_metrics_from_means_mcfarland(
     predictions: pd.DataFrame,
     observations: pd.DataFrame,
     de_genes: pd.DataFrame,
+    *,
+    sciplex_normalize_condition: bool = False,
 ) -> tuple[dict[str, float], dict[tuple[str, str], dict[str, float]]]:
     """MSE and Pearson per (cell_line, condition), plus DE-gene subsets."""
     metrics: dict[str, list[float]] = {'mse': [], 'pearson': [], 'mse_de': [], 'pearson_de': []}
     metrics_pair: dict[tuple[str, str], dict[str, float]] = {}
 
+    predictions = _profiles_for_matching(
+        predictions, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    observations = _profiles_for_matching(
+        observations, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    de_genes = _profiles_for_matching(
+        de_genes, sciplex_normalize_condition=sciplex_normalize_condition
+    )
     gene_columns = _get_common_gene_columns(predictions, observations)
-    pairs = _iter_matched_pairs(predictions, observations)
+    pairs = _iter_matched_pairs(
+        predictions,
+        observations,
+        sciplex_normalize_condition=False,
+    )
 
     for cell_line, condition, pred_row, obs_row in pairs:
         pred_expr = pred_row[gene_columns].to_numpy(dtype=float)
@@ -204,12 +356,16 @@ def compute_metrics_with_systema_mcfarland(
     observations: pd.DataFrame,
     de_genes: pd.DataFrame,
     split_template: pd.DataFrame | None = None,
+    *,
+    reference_observations: pd.DataFrame | None = None,
+    sciplex_normalize_condition: bool = False,
 ) -> tuple[dict[str, float], dict[tuple, dict[str, float]]]:
     """
-    MSE, Pearson, and leave-one-split Systema Pearson per (cell_line, condition, fold).
+    MSE, Pearson, and Systema Pearson per (cell_line, condition, fold).
 
-    For fold ``s``, references are means over other folds (all cell lines) or other folds
-    within the same cell line only (``pearson_systema_cellline*``).
+    Systema references are one mean vector over all non-control observations in the
+    dataset (``pearson_systema*``) or within each cell line (``pearson_systema_cellline*``).
+    The reference does not depend on fold or condition.
     """
     metrics: dict[str, list[float]] = {
         'mse': [],
@@ -223,9 +379,19 @@ def compute_metrics_with_systema_mcfarland(
     }
     metrics_pair: dict[tuple, dict[str, float]] = {}
 
-    predictions = normalize_mcfarland_profiles(predictions)
-    observations = normalize_mcfarland_profiles(observations)
+    predictions = _profiles_for_matching(
+        predictions, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    observations = _profiles_for_matching(
+        observations, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    de_genes = _profiles_for_matching(
+        de_genes, sciplex_normalize_condition=sciplex_normalize_condition
+    )
     if split_template is not None:
+        split_template = _profiles_for_matching(
+            split_template, sciplex_normalize_condition=sciplex_normalize_condition
+        )
         predictions = attach_split_from_template(predictions, split_template)
 
     split_col = resolve_split_column(predictions)
@@ -235,28 +401,33 @@ def compute_metrics_with_systema_mcfarland(
             '(or a split_template such as CPA profiles with fold 0–4).'
         )
 
+    ref_source = reference_observations if reference_observations is not None else observations
+    ref_source = _profiles_for_matching(
+        ref_source, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+
     gene_columns = _get_common_gene_columns(predictions, observations)
-    ref_profiles = observation_profiles_with_split(observations, predictions)
-    cell_line_col = resolve_cell_line_column(ref_profiles)
-    reference_by_split = leave_one_split_reference_vectors(
-        ref_profiles, gene_columns, split_col
+    cell_line_col = resolve_cell_line_column(ref_source)
+    reference_vector = reference_vector_all_non_control(
+        ref_source, gene_columns, cell_line_col=cell_line_col
     )
-    reference_by_split_cellline = leave_one_split_reference_vectors_per_cell_line(
-        ref_profiles, gene_columns, split_col, cell_line_col=cell_line_col
+    reference_by_cellline = reference_vectors_per_cell_line_non_control(
+        ref_source, gene_columns, cell_line_col=cell_line_col
     )
-    pairs = _iter_matched_pairs_with_fold(predictions, observations, split_col)
+    ref_expr = reference_vector.to_numpy(dtype=float)
+    pairs = _iter_matched_pairs_with_fold(
+        predictions,
+        observations,
+        split_col,
+        sciplex_normalize_condition=False,
+    )
 
     for cell_line, condition, split_value, pred_row, obs_row in pairs:
-        reference_vector = reference_by_split[split_value]
-        ref_expr = reference_vector.to_numpy(dtype=float)
-        ref_key = (int(split_value), str(cell_line))
-        if ref_key not in reference_by_split_cellline:
-            pearson_systema_cellline = 0.0
-            pearson_systema_cellline_de = 0.0
-            ref_expr_cl = None
-        else:
-            reference_vector_cl = reference_by_split_cellline[ref_key]
-            ref_expr_cl = reference_vector_cl.to_numpy(dtype=float)
+        ref_expr_cl = (
+            reference_by_cellline[str(cell_line)].to_numpy(dtype=float)
+            if str(cell_line) in reference_by_cellline
+            else None
+        )
         pred_expr = pred_row[gene_columns].to_numpy(dtype=float)
         true_expr = obs_row[gene_columns].to_numpy(dtype=float)
         centered_pred = pred_expr - ref_expr
@@ -285,7 +456,7 @@ def compute_metrics_with_systema_mcfarland(
                 pred_de - ref_de, true_de - ref_de
             )
             if ref_expr_cl is not None:
-                ref_de_cl = reference_vector_cl[de_subset].to_numpy(dtype=float)
+                ref_de_cl = reference_by_cellline[str(cell_line)][de_subset].to_numpy(dtype=float)
                 pair_metrics['pearson_systema_cellline_de'] = _safe_pearson(
                     pred_de - ref_de_cl, true_de - ref_de_cl
                 )
@@ -381,4 +552,7 @@ def prepare_predictions_for_systema(
     predictions = normalize_mcfarland_profiles(predictions)
     if split_template is not None:
         predictions = attach_split_from_template(predictions, split_template)
-    return predictions
+    gene_columns = _get_common_gene_columns(
+        predictions, normalize_mcfarland_profiles(observations)
+    )
+    return collapse_within_split(predictions, gene_columns)

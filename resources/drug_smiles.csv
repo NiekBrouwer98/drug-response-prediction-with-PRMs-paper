@@ -1,0 +1,203 @@
+drug_key,smiles,source
+(+)-JQ1,CC1=C(SC2=C1C(=NC(C3=NN=C(N32)C)CC(=O)OC(C)(C)C)C4=CC=C(C=C4)Cl)C,pubchem
+2-Methoxyestradiol (2-MeOE2),CC12CCC3C(C1CCC2O)CCC4=CC(=C(C=C34)OC)O,pubchem
+A-366,COC1=C(C=C2C(=C1)C3(CCC3)C(=N2)N)OCCCN4CCCC4,pubchem
+ABT-737,CN(C)CCC(CSC1=CC=CC=C1)NC2=C(C=C(C=C2)S(=O)(=O)NC(=O)C3=CC=C(C=C3)N4CCN(CC4)CC5=CC=CC=C5C6=CC=C(C=C6)Cl)[N+](=O)[O-],pubchem
+AC480 (BMS-599626),CC1=C2C(=NC=NN2C=C1NC(=O)OCC3COCCN3)NC4=CC5=C(C=C4)N(N=C5)CC6=CC(=CC=C6)F,pubchem
+AG-14361,CN(C)CC1=CC=C(C=C1)C2=NC3=CC=CC4=C3N2CCNC4=O,pubchem
+AG-490 (Tyrphostin B42),C1=CC=C(C=C1)CNC(=O)C(=CC2=CC(=C(C=C2)O)O)C#N,pubchem
+AICAR (Acadesine),C1=NC(=C(N1C2C(C(C(O2)CO)O)O)N)C(=O)N,pubchem
+AMG-900,CC1=CSC(=C1)C2=NN=C(C3=CC=CC=C32)NC4=CC=C(C=C4)OC5=C(C=CC=N5)C6=NC(=NC=C6)N,pubchem
+AR-42,CC(C)C(C1=CC=CC=C1)C(=O)NC2=CC=C(C=C2)C(=O)NO,pubchem
+AT9283,C1CC1NC(=O)NC2=C(NN=C2)C3=NC4=C(N3)C=C(C=C4)CN5CCOCC5,pubchem
+AZ 960,CC1=CC(=NN1)NC2=C(C=C(C(=N2)NC(C)C3=CC=C(C=C3)F)C#N)F,pubchem
+AZD1480,CC1=CC(=NN1)NC2=NC(=NC=C2Cl)NC(C)C3=NC=C(C=N3)F,pubchem
+AZD5591,,missing
+Abexinostat (PCI-24781),CN(C)CC1=C(OC2=CC=CC=C21)C(=O)NCCOC3=CC=C(C=C3)C(=O)NO,pubchem
+Afatinib,CN(C)CC=CC(=O)NC1=C(C=C2C(=C1)C(=NC=N2)NC3=CC(=C(C=C3)F)Cl)OC4CCOC4,pubchem
+Alendronate sodium trihydrate,C(CC(O)(P(=O)(O)O)P(=O)(O)[O-])CN.O.O.O.[Na+],pubchem
+Alisertib (MLN8237),COC1=C(C(=CC=C1)F)C2=NCC3=CN=C(N=C3C4=C2C=C(C=C4)Cl)NC5=CC(=C(C=C5)C(=O)O)OC,pubchem
+Altretamine,CN(C)C1=NC(=NC(=N1)N(C)C)N(C)C,pubchem
+Alvespimycin (17-DMAG) HCl,CC1CC(C(C(C=C(C(C(C=CC=C(C(=O)NC2=CC(=O)C(=C(C1)C2=O)NCCN(C)C)C)OC)OC(=O)N)C)C)O)OC.Cl,pubchem
+Aminoglutethimide,CCC1(CCC(=O)NC1=O)C2=CC=C(C=C2)N,pubchem
+Amisulpride,CCN1CCCC1CNC(=O)C2=CC(=C(C=C2OC)N)S(=O)(=O)CC,pubchem
+Anacardic Acid,CCCCCCCCCCCCCCCC1=C(C(=CC=C1)O)C(=O)O,pubchem
+Andarine,CC(=O)NC1=CC=C(C=C1)OCC(C)(C(=O)NC2=CC(=C(C=C2)[N+](=O)[O-])C(F)(F)F)O,pubchem
+Aurora A Inhibitor I,CCN1CCN(CC1)C(=O)CC2=CC=C(C=C2)NC3=NC=C(C(=N3)NC4=CC=C(C=C4)C(=O)NC5=CC=CC=C5Cl)F,pubchem
+Avagacestat (BMS-708163),C1=CC(=CC=C1S(=O)(=O)N(CC2=C(C=C(C=C2)C3=NOC=N3)F)C(CCC(F)(F)F)C(=O)N)Cl,pubchem
+Azacitidine,C1=NC(=NC(=O)N1C2C(C(C(O2)CO)O)O)N,pubchem
+BMS-265246,CCCCOC1=C(C=NC2=NNC=C12)C(=O)C3=C(C=C(C=C3F)C)F,pubchem
+BMS-536924,CC1=CC(=CC2=C1N=C(N2)C3=C(C=CNC3=O)NCC(C4=CC(=CC=C4)Cl)O)N5CCOCC5,pubchem
+BMS-754807,CC1(CCCN1C2=NN3C=CC=C3C(=N2)NC4=NNC(=C4)C5CC5)C(=O)NC6=CN=C(C=C6)F,pubchem
+BMS-911543,CCN1C(=CC2=C3C(=C(N=C21)NC4=NN(C(=C4)C)C)N=CN3C)C(=O)N(C5CC5)C6CC6,pubchem
+BRD4770,COC(=O)C1=CC2=C(C=C1)N(C(=N2)NC(=O)C3=CC=CC=C3)CCCC4=CC=CC=C4,pubchem
+Barasertib (AZD1152-HQPA),CCN(CCCOC1=CC2=C(C=C1)C(=NC=N2)NC3=NNC(=C3)CC(=O)NC4=CC(=CC=C4)F)CCO,pubchem
+"Baricitinib (LY3009104, INCB028050)",CCS(=O)(=O)N1CC(C1)(CC#N)N2C=C(C=N2)C3=C4C=CNC4=NC=N3,pubchem
+Belinostat (PXD101),C1=CC=C(C=C1)NS(=O)(=O)C2=CC=CC(=C2)C=CC(=O)NO,pubchem
+Bisindolylmaleimide IX (Ro 31-8220 Mesylate),,missing
+Bortezomib,B(C(CC(C)C)NC(=O)C(CC1=CC=CC=C1)NC(=O)C2=NC=CN=C2)(O)O,pubchem
+Bosutinib (SKI-606),CN1CCN(CC1)CCCOC2=C(C=C3C(=C2)N=CC(=C3NC4=CC(=C(C=C4Cl)Cl)OC)C#N)OC,pubchem
+Busulfan,CS(=O)(=O)OCCCCOS(=O)(=O)C,pubchem
+CEP-33779,CN1CCN(CC1)C2=CC=CC(=C2)NC3=NN4C=CC=C(C4=N3)C5=CC=C(C=C5)S(=O)(=O)C,pubchem
+CUDC-101,COC1=C(C=C2C(=C1)N=CN=C2NC3=CC=CC(=C3)C#C)OCCCCCCC(=O)NO,pubchem
+CUDC-907,CN(CC1=CC2=C(S1)C(=NC(=N2)C3=CN=C(C=C3)OC)N4CCOCC4)C5=NC=C(C=N5)C(=O)NO,pubchem
+CYC116,CC1=C(SC(=N1)N)C2=NC(=NC=C2)NC3=CC=C(C=C3)N4CCOCC4,pubchem
+Capecitabine,CCCCCOC(=O)NC1=NC(=O)N(C=C1F)C2C(C(C(O2)C)O)O,pubchem
+Carmofur,CCCCCCNC(=O)N1C=C(C(=O)NC1=O)F,pubchem
+Cediranib (AZD2171),CC1=CC2=C(N1)C=CC(=C2F)OC3=NC=NC4=CC(=C(C=C43)OC)OCCCN5CCCC5,pubchem
+Celecoxib,CC1=CC=C(C=C1)C2=CC(=NN2C3=CC=C(C=C3)S(=O)(=O)N)C(F)(F)F,pubchem
+"Cerdulatinib (PRT062070, PRT2070)",,missing
+Cimetidine,CC1=C(N=CN1)CSCCNC(=NC)NC#N,pubchem
+Clevudine,CC1=CN(C(=O)NC1=O)C2C(C(C(O2)CO)O)F,pubchem
+Costunolide,CC1=CCCC(=CC2C(CC1)C(=C)C(=O)O2)C,pubchem
+Crizotinib (PF-02341066),CC(C1=C(C=CC(=C1Cl)F)Cl)OC2=C(N=CC(=C2)C3=CN(N=C3)C4CCNCC4)N,pubchem
+Curcumin,COC1=C(C=CC(=C1)C=CC(=O)CC(=O)C=CC2=CC(=C(C=C2)O)OC)O,pubchem
+Cyclocytidine HCl,C1=CN2C3C(C(C(O3)CO)O)OC2=NC1=N.Cl,pubchem
+Dabrafenib,CC(C)(C)C1=NC(=C(S1)C2=NC(=NC=C2)N)C3=C(C(=CC=C3)NS(=O)(=O)C4=C(C=CC=C4F)F)F,pubchem
+Dacinostat (LAQ824),C1=CC=C2C(=C1)C(=CN2)CCN(CCO)CC3=CC=C(C=C3)C=CC(=O)NO,pubchem
+Danusertib (PHA-739358),CN1CCN(CC1)C2=CC=C(C=C2)C(=O)NC3=NNC4=C3CN(C4)C(=O)C(C5=CC=CC=C5)OC,pubchem
+Daphnetin,C1=CC(=C(C2=C1C=CC(=O)O2)O)O,pubchem
+Dasatinib,CC1=C(C(=CC=C1)Cl)NC(=O)C2=CN=C(S2)NC3=CC(=NC(=N3)C)N4CCN(CC4)CCO,pubchem
+Decitabine,C1C(C(OC1N2C=NC(=NC2=O)N)CO)O,pubchem
+Disulfiram,CCN(CC)C(=S)SSC(=S)N(CC)CC,pubchem
+Divalproex Sodium,CCCC(CCC)C(=O)O.CCCC(CCC)C(=O)[O-].[Na+],pubchem
+Droxinostat,CC1=C(C=CC(=C1)Cl)OCCCC(=O)NO,pubchem
+EED226,CS(=O)(=O)C1=CC=C(C=C1)C2=CN=C(N3C2=NN=C3)NCC4=CC=CO4,pubchem
+ENMD-2076,CC1=CC(=NN1)NC2=CC(=NC(=N2)C=CC3=CC=CC=C3)N4CCN(CC4)C,pubchem
+ENMD-2076 L-(+)-Tartaric acid,CC1=CC(=NN1)NC2=CC(=NC(=N2)C=CC3=CC=CC=C3)N4CCN(CC4)C.C(C(C(=O)O)O)(C(=O)O)O,pubchem
+Ellagic acid,C1=C2C3=C(C(=C1O)O)OC(=O)C4=CC(=C(C(=C43)OC2=O)O)O,pubchem
+Entacapone,CCN(CC)C(=O)C(=CC1=CC(=C(C(=C1)O)O)[N+](=O)[O-])C#N,pubchem
+Entinostat (MS-275),C1=CC=C(C(=C1)N)NC(=O)C2=CC=C(C=C2)CNC(=O)OCC3=CN=CC=C3,pubchem
+Enzastaurin (LY317615),CN1C=C(C2=CC=CC=C21)C3=C(C(=O)NC3=O)C4=CN(C5=CC=CC=C54)C6CCN(CC6)CC7=CC=CC=N7,pubchem
+Epothilone A,CC1CCCC2C(O2)CC(OC(=O)CC(C(C(=O)C(C1O)C)(C)C)O)C(=CC3=CSC(=N3)C)C,pubchem
+Everolimus,CC1CCC2CC(C(=CC=CC=CC(CC(C(=O)C(C(C(=CC(C(=O)CC(OC(=O)C3CCCCN3C(=O)C(=O)C1(O2)O)C(C)CC4CCC(C(C4)OC)OCCO)C)C)O)OC)C)C)C)OC,pubchem
+FLLL32,COC1=C(C=C(C=C1)C=CC(=O)C2(CCCCC2)C(=O)C=CC3=CC(=C(C=C3)OC)OC)OC,pubchem
+Fasudil (HA-1077) HCl,C1CNCCN(C1)S(=O)(=O)C2=CC=CC3=C2C=CN=C3.Cl,pubchem
+"Fedratinib (SAR302503, TG101348)",CC1=CN=C(N=C1NC2=CC(=CC=C2)S(=O)(=O)NC(C)(C)C)NC3=CC=C(C=C3)OCCN4CCCC4,pubchem
+Filgotinib (GLPG0634),C1CC1C(=O)NC2=NN3C(=N2)C=CC=C3C4=CC=C(C=C4)CN5CCS(=O)(=O)CC5,pubchem
+Flavopiridol HCl,CN1CCC(C(C1)O)C2=C(C=C(C3=C2OC(=CC3=O)C4=CC=CC=C4Cl)O)O.Cl,pubchem
+"Fluorouracil (5-Fluoracil, 5-FU)",C1=C(C(=O)NC(=O)N1)F,pubchem
+Fulvestrant,CC12CCC3C(C1CCC2O)C(CC4=C3C=CC(=C4)O)CCCCCCCCCS(=O)CCCC(C(F)(F)F)(F)F,pubchem
+G007-LK,CS(=O)(=O)C1=CN=C(C=C1)C2=NN=C(N2C3=CC=CC=C3Cl)C=CC4=NN=C(O4)C5=CC=C(C=C5)C#N,pubchem
+GSK J1,C1CN(CCC2=CC=CC=C21)C3=NC(=NC(=C3)NCCC(=O)O)C4=CC=CC=N4,pubchem
+GSK-LSD1 2HCl,C1CNCCC1NC2CC2C3=CC=CC=C3.Cl.Cl,pubchem
+GSK1070916,CCN1C=C(C(=N1)C2=CC=C(C=C2)NC(=O)N(C)C)C3=C4C=C(NC4=NC=C3)C5=CC=CC(=C5)CN(C)C,pubchem
+Gandotinib (LY2784544),CC1=CC(=NN1)NC2=NN3C(=C(N=C3C(=C2)CN4CCOCC4)C)CC5=C(C=C(C=C5)Cl)F,pubchem
+Givinostat (ITF2357),CCN(CC)CC1=CC2=C(C=C1)C=C(C=C2)COC(=O)NC3=CC=C(C=C3)C(=O)NO.O.Cl,pubchem
+Glesatinib?(MGCD265),COCCNCC1=CN=C(C=C1)C2=CC3=NC=CC(=C3S2)OC4=C(C=C(C=C4)NC(=S)NC(=O)CC5=CC=C(C=C5)F)F,pubchem
+Hesperadin,CCS(=O)(=O)NC1=CC2=C(C=C1)NC(=C2C(=NC3=CC=C(C=C3)CN4CCCCC4)C5=CC=CC=C5)O,pubchem
+INO-1001 (3-Aminobenzamide),,missing
+IOX2,C1=CC=C(C=C1)CN2C3=CC=CC=C3C(=C(C2=O)C(=O)NCC(=O)O)O,pubchem
+ITSA-1 (ITSA1),C1=CC=C2C(=C1)N=NN2C(=O)C3=C(C=C(C=C3)Cl)Cl,pubchem
+Idasanutlin,CC(C)(C)CC1C(C(C(N1)C(=O)NC2=C(C=C(C=C2)C(=O)O)OC)C3=C(C(=CC=C3)Cl)F)(C#N)C4=C(C=C(C=C4)Cl)F,pubchem
+Iniparib (BSI-201),C1=CC(=C(C=C1C(=O)N)[N+](=O)[O-])I,pubchem
+Ivosidenib (AG-120),,missing
+JNJ-26854165 (Serdemetan),C1=CC=C2C(=C1)C(=CN2)CCNC3=CC=C(C=C3)NC4=CC=NC=C4,pubchem
+JNJ-7706621,C1=CC(=C(C(=C1)F)C(=O)N2C(=NC(=N2)NC3=CC=C(C=C3)S(=O)(=O)N)N)F,pubchem
+JQ1,CC1=C(SC2=C1C(=NC(C3=NN=C(N32)C)CC(=O)OC(C)(C)C)C4=CC=C(C=C4)Cl)C,pubchem
+KW-2449,C1CN(CCN1)C(=O)C2=CC=C(C=C2)C=CC3=NNC4=CC=CC=C43,pubchem
+Ki16425,CC1=NOC(=C1NC(=O)OC(C)C2=CC=CC=C2Cl)C3=CC=C(C=C3)CSCCC(=O)O,pubchem
+Ki8751,COC1=CC2=C(C=CN=C2C=C1OC)OC3=CC(=C(C=C3)NC(=O)NC4=C(C=C(C=C4)F)F)F,pubchem
+Lapatinib (GW-572016) Ditosylate,CC1=CC=C(C=C1)S(=O)(=O)O.CC1=CC=C(C=C1)S(=O)(=O)O.CS(=O)(=O)CCNCC1=CC=C(O1)C2=CC3=C(C=C2)N=CN=C3NC4=CC(=C(C=C4)OCC5=CC(=CC=C5)F)Cl,pubchem
+Lenalidomide (CC-5013),C1CC(=O)NC(=O)C1N2CC3=C(C2=O)C=CC=C3N,pubchem
+Linifanib (ABT-869),CC1=CC(=C(C=C1)F)NC(=O)NC2=CC=C(C=C2)C3=C4C(=CC=C3)NN=C4N,pubchem
+Lomustine,C1CCC(CC1)NC(=O)N(CCCl)N=O,pubchem
+"Luminespib (AUY-922, NVP-AUY922)",CCNC(=O)C1=NOC(=C1C2=CC=C(C=C2)CN3CCOCC3)C4=CC(=C(C=C4O)O)C(C)C,pubchem
+M344,CN(C)C1=CC=C(C=C1)C(=O)NCCCCCCC(=O)NO,pubchem
+MC1568,CN1C=C(C=C1C=CC(=O)NO)C=CC(=O)C2=CC(=CC=C2)F,pubchem
+MK-0752,C1CC(CCC1CCC(=O)O)(C2=C(C=CC(=C2)F)F)S(=O)(=O)C3=CC=C(C=C3)Cl,pubchem
+MK-5108 (VX-689),C1CC(CCC1OC2=C(C(=CC=C2)Cl)F)(CC3=NC(=CC=C3)NC4=NC=CS4)C(=O)O,pubchem
+MLN8054,C1C2=CN=C(N=C2C3=C(C=C(C=C3)Cl)C(=N1)C4=C(C=CC=C4F)F)NC5=CC=C(C=C5)C(=O)O,pubchem
+Maraviroc,CC1=NN=C(N1C2CC3CCC(C2)N3CCC(C4=CC=CC=C4)NC(=O)C5CCC(CC5)(F)F)C(C)C,pubchem
+Meprednisone,CC1CC2C3CCC4=CC(=O)C=CC4(C3C(=O)CC2(C1(C(=O)CO)O)C)C,pubchem
+Mercaptopurine (6-MP),C1=NC2=C(N1)C(=S)N=CN2,pubchem
+Mesna,C(CS(=O)(=O)[O-])S.[Na+],pubchem
+Mocetinostat (MGCD0103),C1=CC=C(C(=C1)N)NC(=O)C2=CC=C(C=C2)CNC3=NC=CC(=N3)C4=CN=CC=C4,pubchem
+Momelotinib (CYT387),C1COCCN1C2=CC=C(C=C2)NC3=NC=CC(=N3)C4=CC=C(C=C4)C(=O)NCC#N,pubchem
+Motesanib Diphosphate (AMG-706),CC1(CNC2=C1C=CC(=C2)NC(=O)C3=C(N=CC=C3)NCC4=CC=NC=C4)C.OP(=O)(O)O.OP(=O)(O)O,pubchem
+NVP-BSK805 2HCl,C1CNCCC1N2C=C(C=N2)C3=NC4=C(C=CC=C4N=C3)C5=CC(=C(C(=C5)F)CN6CCOCC6)F.Cl.Cl,pubchem
+Navitoclax,CC1(CCC(=C(C1)CN2CCN(CC2)C3=CC=C(C=C3)C(=O)NS(=O)(=O)C4=CC(=C(C=C4)NC(CCN5CCOCC5)CSC6=CC=CC=C6)S(=O)(=O)C(F)(F)F)C7=CC=C(C=C7)Cl)C,pubchem
+Navitoclax (ABT-263),CC1(CCC(=C(C1)CN2CCN(CC2)C3=CC=C(C=C3)C(=O)NS(=O)(=O)C4=CC(=C(C=C4)NC(CCN5CCOCC5)CSC6=CC=CC=C6)S(=O)(=O)C(F)(F)F)C7=CC=C(C=C7)Cl)C,pubchem
+Nilotinib (AMN-107),CC1=C(C=C(C=C1)C(=O)NC2=CC(=CC(=C2)C(F)(F)F)N3C=C(N=C3)C)NC4=NC=CC(=N4)C5=CN=CC=C5,pubchem
+Nintedanib (BIBF 1120),CN1CCN(CC1)CC(=O)N(C)C2=CC=C(C=C2)N=C(C3=CC=CC=C3)C4=C(NC5=C4C=CC(=C5)C(=O)OC)O,pubchem
+Obatoclax Mesylate (GX15-070),CC1=CC(=C(N1)C=C2C(=CC(=C3C=C4C=CC=CC4=N3)N2)OC)C.CS(=O)(=O)O,pubchem
+Ofloxacin,CC1COC2=C3N1C=C(C(=O)C3=CC(=C2N4CCN(CC4)C)F)C(=O)O,pubchem
+PCI-34051,COC1=CC=C(C=C1)CN2C=CC3=C2C=C(C=C3)C(=O)NO,pubchem
+PD173074,CCN(CC)CCCCNC1=NC2=NC(=C(C=C2C=N1)C3=CC(=CC(=C3)OC)OC)NC(=O)NC(C)(C)C,pubchem
+PD98059,COC1=CC=CC(=C1N)C2=CC(=O)C3=CC=CC=C3O2,pubchem
+PF-3845,C1CN(CCC1CC2=CC(=CC=C2)OC3=NC=C(C=C3)C(F)(F)F)C(=O)NC4=CN=CC=C4,pubchem
+PF-573228,CS(=O)(=O)C1=CC=CC(=C1)CNC2=NC(=NC=C2C(F)(F)F)NC3=CC4=C(C=C3)NC(=O)CC4,pubchem
+PFI-1 (PF-6405761),CN1CC2=C(C=CC(=C2)NS(=O)(=O)C3=CC=CC=C3OC)NC1=O,pubchem
+PHA-680632,CCC1=C(C(=CC=C1)CC)NC(=O)N2CC3=C(C2)NN=C3NC(=O)C4=CC=C(C=C4)N5CCN(CC5)C,pubchem
+PJ34,CN(C)CC(=O)NC1=CC2=C(C=C1)NC(=O)C3=CC=CC=C32,pubchem
+Panobinostat (LBH589),CC1=C(C2=CC=CC=C2N1)CCNCC3=CC=C(C=C3)C=CC(=O)NO,pubchem
+"Patupilone (EPO906, Epothilone B)",,missing
+Pelitinib (EKB-569),CCOC1=C(C=C2C(=C1)N=CC(=C2NC3=CC(=C(C=C3)F)Cl)C#N)NC(=O)C=CCN(C)C,pubchem
+Pirarubicin,CC1C(C(CC(O1)OC2CC(CC3=C2C(=C4C(=C3O)C(=O)C5=C(C4=O)C(=CC=C5)OC)O)(C(=O)CO)O)N)OC6CCCCO6,pubchem
+Pracinostat (SB939),CCCCC1=NC2=C(N1CCN(CC)CC)C=CC(=C2)C=CC(=O)NO,pubchem
+Prednisone,CC12CC(=O)C3C(C1CCC2(C(=O)CO)O)CCC4=CC(=O)C=CC34C,pubchem
+Prexasertib,COC1=C(C(=CC=C1)OCCCN)C2=CC(=NN2)NC3=NC=C(N=C3)C#N,pubchem
+Quercetin,C1=CC(=C(C=C1C2=C(C(=O)C3=C(C=C(C=C3O2)O)O)O)O)O,pubchem
+Quisinostat (JNJ-26481585) 2HCl,CN1C=C(C2=CC=CC=C21)CNCC3CCN(CC3)C4=NC=C(C=N4)C(=O)NO.Cl.Cl,pubchem
+RG108,C1=CC=C2C(=C1)C(=O)N(C2=O)C(CC3=CNC4=CC=CC=C43)C(=O)O,pubchem
+Raltitrexed,CC1=NC2=C(C=C(C=C2)CN(C)C3=CC=C(S3)C(=O)NC(CCC(=O)O)C(=O)O)C(=O)N1,pubchem
+Ramelteon,CCC(=O)NCCC1CCC2=C1C3=C(C=C2)OCC3,pubchem
+Regorafenib (BAY 73-4506),CNC(=O)C1=NC=CC(=C1)OC2=CC(=C(C=C2)NC(=O)NC3=CC(=C(C=C3)Cl)C(F)(F)F)F,pubchem
+Resminostat,CN(C)CC1=CC=C(C=C1)S(=O)(=O)N2C=CC(=C2)C=CC(=O)NO,pubchem
+Resveratrol,C1=CC(=CC=C1C=CC2=CC(=CC(=C2)O)O)O,pubchem
+Rigosertib (ON-01910),COC1=C(C=C(C=C1)CS(=O)(=O)C=CC2=C(C=C(C=C2OC)OC)OC)NCC(=O)[O-].[Na+],pubchem
+"Roscovitine (Seliciclib,CYC202)",CCC(CO)NC1=NC(=C2C(=N1)N(C=N2)C(C)C)NCC3=CC=CC=C3,pubchem
+Roxadustat (FG-4592),CC1=C2C=C(C=CC2=C(C(=N1)C(=O)NCC(=O)O)O)OC3=CC=CC=C3,pubchem
+"Rucaparib (AG-014699,PF-01367338) phosphate",,missing
+Ruxolitinib (INCB018424),C1CCC(C1)C(CC#N)N2C=C(C=N2)C3=C4C=CNC4=NC=N3,pubchem
+S-Ruxolitinib (INCB018424),C1CCC(C1)C(CC#N)N2C=C(C=N2)C3=C4C=CNC4=NC=N3,pubchem
+S3I-201,CC1=CC=C(C=C1)S(=O)(=O)OCC(=O)NC2=CC(=C(C=C2)C(=O)O)O,pubchem
+SB431542,C1OC2=C(O1)C=C(C=C2)C3=C(NC(=N3)C4=CC=C(C=C4)C(=O)N)C5=CC=CC=N5,pubchem
+SGI-1776 free base,CN1CCC(CC1)CNC2=NN3C(=NC=C3C4=CC(=CC=C4)OC(F)(F)F)C=C2,pubchem
+SL-327,C1=CC=C(C(=C1)C(=C(N)SC2=CC=C(C=C2)N)C#N)C(F)(F)F,pubchem
+SNS-314,C1=CC(=CC(=C1)Cl)NC(=O)NC2=NC=C(S2)CCNC3=NC=NC4=C3SC=C4,pubchem
+SRT1720 HCl,C1CN(CCN1)CC2=CSC3=NC(=CN23)C4=CC=CC=C4NC(=O)C5=NC6=CC=CC=C6N=C5.Cl,pubchem
+SRT2104 (GSK2245840),CC1=C(SC(=N1)C2=CN=CC=C2)C(=O)NC3=CC=CC=C3C4=CN5C(=CSC5=N4)CN6CCOCC6,pubchem
+SRT3025 HCl,COCCCC1=C(N=C(S1)C2=CC=CC=C2)C(=O)NC3=CC=CC=C3C4=NC5=C(S4)N=CC(=C5)CN6CCCC6.Cl,pubchem
+Selisistat (EX 527),C1CC(C2=C(C1)C3=C(N2)C=CC(=C3)Cl)C(=O)N,pubchem
+Sirtinol,CC(C1=CC=CC=C1)NC(=O)C2=CC=CC=C2N=CC3=C(C=CC4=CC=CC=C43)O,pubchem
+Sodium Phenylbutyrate,C1=CC=C(C=C1)CCCC(=O)[O-].[Na+],pubchem
+Sorafenib Tosylate,CC1=CC=C(C=C1)S(=O)(=O)O.CNC(=O)C1=NC=CC(=C1)OC2=CC=C(C=C2)NC(=O)NC3=CC(=C(C=C3)Cl)C(F)(F)F,pubchem
+Streptozotocin (STZ),CN(C(=O)NC1C(C(C(OC1O)CO)O)O)N=O,pubchem
+TAK-901,CCS(=O)(=O)C1=CC=CC(=C1)C2=CC(=C(C3=C2C4=C(N3)N=CC(=C4)C)C)C(=O)NC5CCN(CC5)C,pubchem
+TG101209,CC1=CN=C(N=C1NC2=CC(=CC=C2)S(=O)(=O)NC(C)(C)C)NC3=CC=C(C=C3)N4CCN(CC4)C,pubchem
+TGX-221,CC1=CN2C(=O)C=C(N=C2C(=C1)C(C)NC3=CC=CC=C3)N4CCOCC4,pubchem
+TMP195,CC(C)(CNC(=O)C1=CC=CC(=C1)C2=NOC(=N2)C(F)(F)F)C3=COC(=N3)C4=CC=CC=C4,pubchem
+Tacedinaline (CI994),CC(=O)NC1=CC=C(C=C1)C(=O)NC2=CC=CC=C2N,pubchem
+Tanespimycin (17-AAG),CC1CC(C(C(C=C(C(C(C=CC=C(C(=O)NC2=CC(=O)C(=C(C1)C2=O)NCC=C)C)OC)OC(=O)N)C)C)O)OC,pubchem
+Taselisib,CC1=NN(C(=N1)C2=CN3CCOC4=C(C3=N2)C=CC(=C4)C5=CN(N=C5)C(C)(C)C(=O)N)C(C)C,pubchem
+Tazemetostat (EPZ-6438),CCN(C1CCOCC1)C2=CC(=CC(=C2C)C(=O)NCC3=C(C=C(NC3=O)C)C)C4=CC=C(C=C4)CN5CCOCC5,pubchem
+"Temsirolimus (CCI-779, NSC 683864)",CC1CCC2CC(C(=CC=CC=CC(CC(C(=O)C(C(C(=CC(C(=O)CC(OC(=O)C3CCCCN3C(=O)C(=O)C1(O2)O)C(C)CC4CCC(C(C4)OC)OC(=O)C(C)(CO)CO)C)C)O)OC)C)C)C)OC,pubchem
+Thalidomide,C1CC(=O)NC(=O)C1N2C(=O)C3=CC=CC=C3C2=O,pubchem
+Thiotepa,C1CN1P(=S)(N2CC2)N3CC3,pubchem
+Tie2 kinase inhibitor,COC1=CC2=C(C=C1)C=C(C=C2)C3=C(NC(=N3)C4=CC=C(C=C4)S(=O)C)C5=CC=NC=C5,pubchem
+Tofacitinib (CP-690550) Citrate,CC1CCN(CC1N(C)C2=NC=NC3=C2C=CN3)C(=O)CC#N.C(C(=O)O)C(CC(=O)O)(C(=O)O)O,pubchem
+Toremifene Citrate,CN(C)CCOC1=CC=C(C=C1)C(=C(CCCl)C2=CC=CC=C2)C3=CC=CC=C3.C(C(=O)O)C(CC(=O)O)(C(=O)O)O,pubchem
+"Tozasertib (VX-680, MK-0457)",CC1=CC(=NN1)NC2=CC(=NC(=N2)SC3=CC=C(C=C3)NC(=O)C4CC4)N5CCN(CC5)C,pubchem
+Trametinib,CC1=C2C(=C(N(C1=O)C)NC3=C(C=C(C=C3)I)F)C(=O)N(C(=O)N2C4=CC=CC(=C4)NC(=O)C)C5CC5,pubchem
+Trametinib (GSK1120212),CC1=C2C(=C(N(C1=O)C)NC3=C(C=C(C=C3)I)F)C(=O)N(C(=O)N2C4=CC=CC(=C4)NC(=O)C)C5CC5,pubchem
+Tranylcypromine (2-PCPA) HCl,C1C(C1N)C2=CC=CC=C2.Cl,pubchem
+Triamcinolone Acetonide,CC1(OC2CC3C4CCC5=CC(=O)C=CC5(C4(C(CC3(C2(O1)C(=O)CO)C)O)F)C)C,pubchem
+Trichostatin A (TSA),CC(C=C(C)C=CC(=O)NO)C(=O)C1=CC=C(C=C1)N(C)C,pubchem
+Tubastatin A HCl,CN1CCC2=C(C1)C3=CC=CC=C3N2CC4=CC=C(C=C4)C(=O)NO.Cl,pubchem
+Tucidinostat (Chidamide),C1=CC(=CN=C1)C=CC(=O)NCC2=CC=C(C=C2)C(=O)NC3=C(C=C(C=C3)F)N,pubchem
+UNC0379,COC1=C(C=C2C(=C1)C(=NC(=N2)N3CCCC3)NCCCCCN4CCCC4)OC,pubchem
+UNC0631,CC(C)N1CCCN(CC1)C2=NC3=CC(=C(C=C3C(=N2)NC4CCN(CC4)CC5CCCCC5)OC)OCCCN6CCCCC6,pubchem
+UNC1999,CCCC1=C(C(=O)NC(=C1)C)CNC(=O)C2=C3C=NN(C3=CC(=C2)C4=CN=C(C=C4)N5CCN(CC5)C(C)C)C(C)C,pubchem
+Valproic acid sodium salt (Sodium valproate),CCCC(CCC)C(=O)[O-].[Na+],pubchem
+Vandetanib (ZD6474),CN1CCC(CC1)COC2=C(C=C3C(=C2)N=CN=C3NC4=C(C=C(C=C4)Br)F)OC,pubchem
+Vehicle,,non_small_molecule
+Veliparib (ABT-888),CC1(CCCN1)C2=NC3=C(C=CC=C3N2)C(=O)N,pubchem
+WHI-P154,COC1=C(C=C2C(=C1)C(=NC=N2)NC3=CC(=C(C=C3)O)Br)OC,pubchem
+WP1066,CC(C1=CC=CC=C1)NC(=O)C(=CC2=NC(=CC=C2)Br)C#N,pubchem
+XAV-939,C1CSCC2=C1N=C(NC2=O)C3=CC=C(C=C3)C(F)(F)F,pubchem
+YM155 (Sepantronium Bromide),CC1=[N+](C2=C(N1CCOC)C(=O)C3=CC=CC=C3C2=O)CC4=NC=CN=C4.[Br-],pubchem
+ZM 447439,COC1=C(C=C2C(=C1)C(=NC=N2)NC3=CC=C(C=C3)NC(=O)C4=CC=CC=C4)OCCCN5CCOCC5,pubchem
+Zileuton,CC(C1=CC2=CC=CC=C2S1)N(C(=O)N)O,pubchem
+sgGPX4,,non_small_molecule
+sgOR2J2,,non_small_molecule

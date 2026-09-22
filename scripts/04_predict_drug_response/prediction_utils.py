@@ -142,36 +142,236 @@ def get_McFarland_sensitivityinfo_for_profile_merge() -> pd.DataFrame:
     return df.drop(columns=['tissue'], errors='ignore')
 
 
-def get_sciplex_AUCs():
+def _normalize_sciplex_product_name(names: pd.Series) -> pd.Series:
+    """Strip leading/trailing whitespace and remove all internal spaces for SciPlex drug joins."""
+    out = names.astype(str).str.strip().str.replace(r'\s+', '', regex=True)
+    # chemCPA / PubChem-style aliases → names used in observed / split identifiers
+    out = out.str.replace('(plus)', '(+)', regex=False)
+    out = out.replace({'JQ1': '(+)-JQ1'})
+    return out
+
+
+def merge_sciplex_sensitivity(
+    profiles: pd.DataFrame,
+    sensitivity: pd.DataFrame,
+    *,
+    value_col: str = 'y',
+) -> pd.DataFrame:
+    """Merge sensitivity onto profiles using normalized product_name + cell_line.
+
+    Falls back to ``gene_target``/``target`` join when product names do not match
+    (e.g. pseudobulk ``condition`` still holds perturbation labels).
+    """
+    if profiles.empty:
+        logger.warning('merge_sciplex_sensitivity: profiles dataframe is empty')
+        return profiles.copy()
+
+    left = profiles.copy()
+    if 'condition' in left.columns:
+        left['_profile_key'] = _normalize_sciplex_product_name(left['condition'])
+    else:
+        raise KeyError('SciPlex profiles missing condition column')
+    if 'cell_line' not in left.columns and 'cell_type' in left.columns:
+        left['cell_line'] = left['cell_type']
+    if 'cell_line' in left.columns:
+        left['cell_line'] = left['cell_line'].astype(str).str.strip().str.upper()
+
+    right = sensitivity.copy()
+    key_col = 'condition' if 'condition' in right.columns else value_col
+    if 'condition' in right.columns:
+        right['_sens_key'] = _normalize_sciplex_product_name(right['condition'])
+    else:
+        right['_sens_key'] = _normalize_sciplex_product_name(right[key_col])
+    if 'cell_line' in right.columns:
+        right['cell_line'] = right['cell_line'].astype(str).str.strip().str.upper()
+
+    val_out = value_col if value_col in right.columns else ('y' if 'y' in right.columns else value_col)
+    sens_cols = ['_sens_key', 'cell_line']
+    if val_out in right.columns:
+        sens_cols.append(val_out)
+    right = right[sens_cols].drop_duplicates(subset=['_sens_key', 'cell_line'], keep='first')
+
+    merged = left.merge(
+        right,
+        left_on=['_profile_key', 'cell_line'],
+        right_on=['_sens_key', 'cell_line'],
+        how='left',
+    )
+    if val_out not in merged.columns and val_out != 'y' and 'y' in merged.columns:
+        merged[val_out] = merged['y']
+
+    n_hit = int(merged[val_out].notna().sum()) if val_out in merged.columns else 0
+    if n_hit == 0:
+        logger.warning(
+            'SciPlex product-name merge matched 0/%d rows; trying gene_target merge',
+            len(merged),
+        )
+        by_target = _load_sciplex_sensitivity_by_target()
+        target_val = value_col if value_col in by_target.columns else 'y'
+        merged = left.merge(
+            by_target,
+            left_on=['_profile_key', 'cell_line'],
+            right_on=['target', 'cell_line'],
+            how='left',
+            suffixes=('', '_target'),
+        )
+        if target_val in merged.columns:
+            merged[val_out] = merged[target_val]
+        if 'condition_product' in merged.columns:
+            merged['condition'] = merged['condition_product'].fillna(merged['condition'])
+        n_hit = int(merged[val_out].notna().sum()) if val_out in merged.columns else 0
+
+    logger.info(
+        'merge_sciplex_sensitivity: matched %d / %d rows on %s',
+        n_hit,
+        len(merged),
+        val_out,
+    )
+    if n_hit == 0 and len(merged) > 0:
+        prof_sample = left[['_profile_key', 'cell_line']].drop_duplicates().head(5)
+        logger.error('Profile key sample:\n%s', prof_sample.to_string(index=False))
+
+    merged = merged.drop(columns=['_profile_key', '_sens_key'], errors='ignore')
+    if 'condition' not in merged.columns:
+        merged['condition'] = merged.get('_profile_key', left['condition'])
+    return merged
+
+
+def _load_sciplex_sensitivity_by_target() -> pd.DataFrame:
+    """Sensitivity keyed by perturbation target (``BRD4+ctrl``) and cell_line."""
+    filepath = os.path.join(resources_dir, 'sciplex_sensitivity_info.csv')
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f'SciPlex sensitivity table not found: {filepath}')
+    df = pd.read_csv(filepath)
+    value_col = 'y' if 'y' in df.columns else 'sens'
+    if 'target' not in df.columns:
+        raise ValueError('sciplex_sensitivity_info.csv missing target column for fallback merge')
+    out = df.copy()
+    out['target'] = out['target'].astype(str).str.strip()
+    out['cell_line'] = out['cell_line'].astype(str).str.strip().str.upper()
+    out[value_col] = pd.to_numeric(out[value_col], errors='coerce')
+    if 'product_name' in out.columns:
+        out['condition_product'] = _normalize_sciplex_product_name(out['product_name'])
+    else:
+        out['condition_product'] = out['target']
+    cols = ['target', 'cell_line', value_col, 'condition_product']
+    return out[cols].dropna(subset=['target', 'cell_line', value_col]).drop_duplicates(
+        subset=['target', 'cell_line'], keep='first'
+    )
+
+
+def _load_sciplex_sensitivity_table() -> pd.DataFrame:
+    """SciPlex sensitivity keyed by normalized ``product_name`` (``condition`` column)."""
     filepath = os.path.join(resources_dir, 'sciplex_sensitivity_info.csv')
     if os.path.exists(filepath):
         sensitivity_df = pd.read_csv(filepath)
-
     else:
-        sensitivity_df = []
+        frames = []
         for cell_line in ['mcf7', 'k562', 'a549']:
-            sensitivity = pd.read_csv(os.path.join(results_dir, '01_process_observed_profiles', f'sciplex{cell_line}_msd.csv'))
-            sensitivity = sensitivity[(sensitivity['dose']==10000)| (sensitivity['dose']==0)][['condition','1-viability']].drop_duplicates()
+            sensitivity = pd.read_csv(
+                os.path.join(results_dir, '01_process_observed_profiles', f'sciplex{cell_line}_msd.csv')
+            )
+            sensitivity = sensitivity[(sensitivity['dose'] == 10000) | (sensitivity['dose'] == 0)][
+                ['condition', '1-viability']
+            ].drop_duplicates()
             sensitivity['cell_line'] = cell_line.upper()
-            sensitivity = sensitivity.rename(columns={'1-viability': 'y'})
+            sensitivity = sensitivity.rename(columns={'1-viability': 'y', 'condition': 'product_name'})
 
-            pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-            pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-            sensitivity = pd.merge(sensitivity, pert_to_drug, left_on='condition',right_on='product_name', how='left')
+            pert_to_drug = pd.read_csv(
+                os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'), index_col=0
+            )
+            pert_to_drug['product_name_key'] = _normalize_sciplex_product_name(pert_to_drug['product_name'])
+            sensitivity['product_name_key'] = _normalize_sciplex_product_name(sensitivity['product_name'])
+            sensitivity = pd.merge(
+                sensitivity,
+                pert_to_drug[['product_name', 'target', 'product_name_key']],
+                on='product_name_key',
+                how='left',
+            )
+            frames.append(sensitivity)
 
-            sensitivity_df.append(sensitivity)
-
-        sensitivity_df = pd.concat(sensitivity_df, axis=0)
+        sensitivity_df = pd.concat(frames, axis=0, ignore_index=True)
         sensitivity_df.to_csv(filepath, index=False)
 
-    sensitivity_df = sensitivity_df.drop(columns=['condition', 'product_name']).rename(columns={'target': 'condition'})
+    drug_col = 'product_name' if 'product_name' in sensitivity_df.columns else 'condition'
+    if drug_col not in sensitivity_df.columns:
+        raise ValueError(
+            'SciPlex sensitivity table must contain product_name or condition; '
+            f'got columns {list(sensitivity_df.columns)}'
+        )
 
-    return sensitivity_df
+    value_col = 'y' if 'y' in sensitivity_df.columns else 'sens'
+    out = sensitivity_df.copy()
+    out['condition'] = _normalize_sciplex_product_name(out[drug_col])
+    out['cell_line'] = out['cell_line'].astype(str).str.strip().str.upper()
+    out['y'] = pd.to_numeric(out[value_col], errors='coerce')
+    out = out.dropna(subset=['condition', 'cell_line', 'y'])
+    return out.drop_duplicates(subset=['condition', 'cell_line'], keep='first')[['condition', 'cell_line', 'y']]
 
-def get_McFarland_mean_data():
-    mean_observed_pre_treatment = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', 'mcfarland_mean_pre_all_celllines.csv'), index_col=0)
-    mean_observed_post_treatment = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', 'mcfarland_mean_post_all_celllines.csv'), index_col=0)
-    mean_observed_LFC= pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', 'mcfarland_mean_LFC_all_celllines.csv'), index_col=0)
+
+def get_sciplex_AUCs():
+    return _load_sciplex_sensitivity_table()
+
+
+def get_sciplex_pair_fold_keys() -> pd.DataFrame:
+    """Official SciPlex ``(cell_line, condition, fold)`` keys for all treated pairs (~188×3).
+
+    Built from ``resources/sciplex_split_identifiers.csv`` (controls have fold=-1 and are
+    dropped). Prefer this over CPA fold tables when expanding measured / baseline
+    profiles so the full drug grid is retained.
+    """
+    path = os.path.join(resources_dir, 'sciplex_split_identifiers.csv')
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f'Missing {path}; run create_sciplex_splits.py to write fold identifiers'
+        )
+    raw = pd.read_csv(path, usecols=['cell_type', 'condition', 'fold'])
+    treated = raw.loc[pd.to_numeric(raw['fold'], errors='coerce').fillna(-1).ge(0)].copy()
+    treated['cell_line'] = treated['cell_type'].astype(str).str.strip().str.upper()
+    treated['condition'] = _normalize_sciplex_product_name(treated['condition'])
+    treated['fold'] = pd.to_numeric(treated['fold'], errors='coerce').astype(int)
+    keys = treated[['cell_line', 'condition', 'fold']].drop_duplicates()
+    logger.info(
+        'get_sciplex_pair_fold_keys: %d pairs across %d conditions × %d lines',
+        len(keys),
+        keys['condition'].nunique(),
+        keys['cell_line'].nunique(),
+    )
+    return keys
+
+
+def _mcfarland_profile_csv_paths(kind: str) -> tuple[str, str, str]:
+    pb = os.path.join(data_dir, "observed_pseudobulk")
+    if kind == "count":
+        return (
+            os.path.join(pb, "mcfarland_count_pre.csv"),
+            os.path.join(pb, "mcfarland_count_post.csv"),
+            os.path.join(pb, "mcfarland_count_LFC.csv"),
+        )
+    return (
+        os.path.join(pb, "mcfarland_mean_pre_all_celllines.csv"),
+        os.path.join(pb, "mcfarland_mean_post_all_celllines.csv"),
+        os.path.join(pb, "mcfarland_mean_LFC_all_celllines.csv"),
+    )
+
+
+def _drop_assay_missing_gene_columns(df: pd.DataFrame, dataset: str) -> pd.DataFrame:
+    mask_path = os.path.join(str(config.RESULTS_01_DIR), f"{dataset}_gene_assay_mask.csv")
+    if not os.path.exists(mask_path):
+        return df
+    mask = pd.read_csv(mask_path, index_col=0).iloc[:, 0].astype(bool)
+    missing = [gene for gene in mask.index[mask] if gene in df.columns]
+    if missing:
+        logger.info("Dropped %d assay-missing genes from %s profiles", len(missing), dataset)
+        return df.drop(columns=missing)
+    return df
+
+
+def get_McFarland_mean_data(kind: str = "mean"):
+    pre_path, post_path, lfc_path = _mcfarland_profile_csv_paths(kind)
+    mean_observed_pre_treatment = pd.read_csv(pre_path, index_col=0)
+    mean_observed_post_treatment = pd.read_csv(post_path, index_col=0)
+    mean_observed_LFC = pd.read_csv(lfc_path, index_col=0)
 
     logger.info(
         "get_McFarland_mean_data: read CSV rows pre=%d post=%d LFC=%d; pre ncols=%d",
@@ -241,30 +441,47 @@ def get_McFarland_mean_data():
             samp = dfm['condition'].drop_duplicates().head(8).tolist()
             logger.info("get_McFarland_mean_data [%s]: sample condition values: %s", name, samp)
 
+    if kind == "count":
+        mean_observed_pre_treatment_with_tissue = _drop_assay_missing_gene_columns(
+            mean_observed_pre_treatment_with_tissue, "mcfarland"
+        )
+        mean_observed_post_treatment_with_tissue = _drop_assay_missing_gene_columns(
+            mean_observed_post_treatment_with_tissue, "mcfarland"
+        )
+        mean_observed_LFC_with_tissue = _drop_assay_missing_gene_columns(
+            mean_observed_LFC_with_tissue, "mcfarland"
+        )
+
     return mean_observed_pre_treatment_with_tissue, mean_observed_post_treatment_with_tissue, mean_observed_LFC_with_tissue
+
+
+def get_McFarland_count_data():
+    return get_McFarland_mean_data(kind="count")
 
 def get_sciplex_pre_treatment_data():
     result = []
     for cell_line in ['mcf7', 'k562', 'a549']:
         adata = sc.read_h5ad(os.path.join(data_dir, 'sciplex_processed', f'sciplex{cell_line}.h5ad'))
         adata_df = adata.to_df()
-        adata_df['product_name'] = adata.obs['product_name']
-        ctrl_data = adata_df[adata_df['product_name'] == 'Vehicle']
+        drug_col = 'condition' if 'condition' in adata.obs.columns else 'product_name'
+        adata_df['condition'] = adata.obs[drug_col].astype(str).to_numpy()
+        ctrl_data = adata_df[adata_df['condition'].str.lower().isin(['vehicle', 'ctrl', 'control', 'dmso'])]
         result.append(ctrl_data)
 
     pre_data = pd.concat(result,axis=0)
-    pre_data = pre_data.drop(columns=['product_name'])
+    pre_data = pre_data.drop(columns=['condition'], errors='ignore')
     return(pre_data)
 
-def get_sciplex_mean_data():
+def get_sciplex_mean_data(kind: str = "mean"):
+    infix = "mean" if kind == "mean" else "count"
     mean_pre_df = []
     mean_post_df = []
     mean_LFC_df = []
 
     for cell_line in ['mcf7', 'k562', 'a549']:
-        mean_pre = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_pre_{cell_line}.csv'), index_col=0).drop(columns=['cell_type'])
-        mean_post = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0).drop(columns=['cell_type'])
-        mean_LFC = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_LFC_{cell_line}.csv'), index_col=0)
+        mean_pre = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_{infix}_pre_{cell_line}.csv'), index_col=0).drop(columns=['cell_type'], errors='ignore')
+        mean_post = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_{infix}_post_{cell_line}.csv'), index_col=0).drop(columns=['cell_type'], errors='ignore')
+        mean_LFC = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_{infix}_LFC_{cell_line}.csv'), index_col=0)
         mean_pre['cell_line'] = cell_line.upper()
         mean_post['cell_line'] = cell_line.upper()
         mean_LFC['cell_line'] = cell_line.upper()
@@ -275,55 +492,308 @@ def get_sciplex_mean_data():
     mean_pre_df = pd.concat(mean_pre_df, axis=0)
     mean_post_df = pd.concat(mean_post_df, axis=0)
     mean_LFC_df = pd.concat(mean_LFC_df, axis=0)
+    for _df in (mean_pre_df, mean_post_df, mean_LFC_df):
+        if 'condition' in _df.columns:
+            _df['condition'] = _normalize_sciplex_product_name(_df['condition'])
+        if 'cell_line' in _df.columns:
+            _df['cell_line'] = _df['cell_line'].astype(str).str.strip().str.upper()
+    if kind == "count":
+        mean_pre_df = _drop_assay_missing_gene_columns(mean_pre_df, "sciplex")
+        mean_post_df = _drop_assay_missing_gene_columns(mean_post_df, "sciplex")
+        mean_LFC_df = _drop_assay_missing_gene_columns(mean_LFC_df, "sciplex")
+
+    n_cond = int(mean_post_df['condition'].nunique()) if 'condition' in mean_post_df.columns else 0
+    n_pairs = (
+        mean_post_df.groupby(['cell_line', 'condition']).ngroups
+        if {'cell_line', 'condition'}.issubset(mean_post_df.columns)
+        else len(mean_post_df)
+    )
+    logger.info(
+        "get_sciplex_%s_data: post rows=%d unique conditions=%d (cell_line,condition) pairs=%d",
+        infix,
+        len(mean_post_df),
+        n_cond,
+        n_pairs,
+    )
+    if kind == "mean" and n_cond < 150:
+        logger.warning(
+            "SciPlex mean post has only %d conditions (expected ~188). "
+            "Re-run scripts/02_process_predicted_profiles/create_pseudobulk.py "
+            "against Srivatsan_2019_raw_processed.h5ad, or use kind='count'.",
+            n_cond,
+        )
 
     return mean_pre_df, mean_post_df, mean_LFC_df
 
+
+def get_sciplex_count_data():
+    return get_sciplex_mean_data(kind="count")
+
+def _remap_sciplex_gene_target_conditions(df: pd.DataFrame) -> pd.DataFrame:
+    """Map SciPlex GEARS/scFoundation gene-target ``condition`` onto product names."""
+    mapping_path = os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv')
+    if not os.path.exists(mapping_path):
+        logger.warning(
+            '_remap_sciplex_gene_target_conditions: missing %s; leaving conditions unchanged',
+            mapping_path,
+        )
+        return df
+    mapping = pd.read_csv(mapping_path, index_col=0)
+    if 'target' not in mapping.columns or 'product_name' not in mapping.columns:
+        raise ValueError(f'Expected target/product_name in {mapping_path}')
+    target_to_label = (
+        mapping.dropna(subset=['target', 'product_name'])
+        .drop_duplicates(subset='target', keep='first')
+        .set_index('target')['product_name']
+    )
+    out = df.copy()
+    mapped = out['condition'].astype(str).map(target_to_label)
+    out['condition'] = mapped.fillna(out['condition'].astype(str))
+    out['condition'] = _normalize_sciplex_product_name(out['condition'])
+    return out
+
+
+def _finalize_sciplex_genetic_prm(df: pd.DataFrame) -> pd.DataFrame:
+    """Harmonize SciPlex genetic-PRM tables; preserve native ``fold`` when present."""
+    out = df.copy()
+    if 'cell_type' in out.columns and 'cell_line' not in out.columns:
+        out = out.rename(columns={'cell_type': 'cell_line'})
+    if 'perturbation' in out.columns and 'condition' not in out.columns:
+        out = out.rename(columns={'perturbation': 'condition'})
+    if 'cell_line' in out.columns:
+        out['cell_line'] = out['cell_line'].astype(str).str.strip().str.upper()
+    out = _remap_sciplex_gene_target_conditions(out)
+    if 'tissue' not in out.columns:
+        out['tissue'] = out['cell_line']
+    out = _drop_non_gene_extra_columns(out)
+    out = _normalize_split_to_fold(out)
+    return out
+
+
 def get_GEARS_predictions():
+    """Load SciPlex GEARS post/LFC tables (expanded onto chemical fold keys downstream)."""
     post_predictions = []
     lfc_predictions = []
     for cell_line in ['mcf7', 'k562', 'a549']:
-        predicted_cell_line = pd.read_csv(os.path.join(data_dir, 'GEARS_predictions', f'sciplex_mean_post_{cell_line}.csv'), index_col=0).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        predicted_LFC_cell_line = pd.read_csv(os.path.join(data_dir, 'GEARS_predictions', f'sciplex_mean_LFC_{cell_line}.csv')).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        post_predictions.append(predicted_cell_line)
-        lfc_predictions.append(predicted_LFC_cell_line)
+        predicted_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'GEARS_predictions', f'sciplex_mean_post_{cell_line}.csv'),
+            index_col=0,
+        )
+        predicted_LFC_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'GEARS_predictions', f'sciplex_mean_LFC_{cell_line}.csv'),
+        )
+        post_predictions.append(_finalize_sciplex_genetic_prm(predicted_cell_line))
+        lfc_predictions.append(_finalize_sciplex_genetic_prm(predicted_LFC_cell_line))
 
     post_predictions = pd.concat(post_predictions, axis=0)
     lfc_predictions = pd.concat(lfc_predictions, axis=0)
-
     return post_predictions, lfc_predictions
+
 
 def get_GEARS_noreg_predictions():
     post_predictions = []
     lfc_predictions = []
     for cell_line in ['mcf7', 'k562', 'a549']:
-        predicted_cell_line = pd.read_csv(os.path.join(data_dir, 'GEARS_noreg_predictions', f'sciplex_mean_post_{cell_line}.csv'), index_col=0).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        predicted_LFC_cell_line = pd.read_csv(os.path.join(data_dir, 'GEARS_noreg_predictions', f'sciplex_mean_LFC_{cell_line}.csv')).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        post_predictions.append(predicted_cell_line)
-        lfc_predictions.append(predicted_LFC_cell_line)
+        predicted_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'GEARS_noreg_predictions', f'sciplex_mean_post_{cell_line}.csv'),
+            index_col=0,
+        )
+        predicted_LFC_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'GEARS_noreg_predictions', f'sciplex_mean_LFC_{cell_line}.csv'),
+        )
+        post_predictions.append(_finalize_sciplex_genetic_prm(predicted_cell_line))
+        lfc_predictions.append(_finalize_sciplex_genetic_prm(predicted_LFC_cell_line))
 
     post_predictions = pd.concat(post_predictions, axis=0)
     lfc_predictions = pd.concat(lfc_predictions, axis=0)
-
     return post_predictions, lfc_predictions
 
+
 def get_scfoundation_predictions():
+    """Load SciPlex scFoundation post/LFC tables (expanded onto chemical fold keys downstream)."""
     post_predictions = []
     lfc_predictions = []
     for cell_line in ['mcf7', 'k562', 'a549']:
-        predicted_cell_line = pd.read_csv(os.path.join(data_dir, 'scfoundation_predictions', f'sciplex_mean_post_{cell_line}.csv'), index_col=0).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        predicted_LFC_cell_line = pd.read_csv(os.path.join(data_dir, 'scfoundation_predictions', f'sciplex_mean_LFC_{cell_line}.csv')).rename(columns={'cell_type':'cell_line', 'perturbation':'condition'})
-        post_predictions.append(predicted_cell_line)
-        lfc_predictions.append(predicted_LFC_cell_line)
+        predicted_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'scfoundation_predictions', f'sciplex_mean_post_{cell_line}.csv'),
+            index_col=0,
+        )
+        predicted_LFC_cell_line = pd.read_csv(
+            os.path.join(data_dir, 'scfoundation_predictions', f'sciplex_mean_LFC_{cell_line}.csv'),
+        )
+        post_predictions.append(_finalize_sciplex_genetic_prm(predicted_cell_line))
+        lfc_predictions.append(_finalize_sciplex_genetic_prm(predicted_LFC_cell_line))
 
     post_predictions = pd.concat(post_predictions, axis=0)
     lfc_predictions = pd.concat(lfc_predictions, axis=0)
-
     return post_predictions, lfc_predictions
 
-def get_CPA_predictions():
-    post_predictions = pd.read_csv(os.path.join(data_dir, 'CPA_predictions', 'sciplex_mean_post.csv')).rename(columns={'cell_type':'cell_line'})
-    lfc_predictions = pd.read_csv(os.path.join(data_dir, 'CPA_predictions', 'sciplex_mean_LFC.csv')).rename(columns={'cell_type':'cell_line'})
+PROFILE_META_COLS = {
+    'cell_line', 'cell_type', 'condition', 'tissue', 'fold', 'split',
+    'n_cells', 'sens', 'target', 'sens_label', 'y', 'drug', 'dose',
+    'cpa_pert', 'dataset', 'Unnamed: 0', 'perturbation', 'index', 'gene_target',
+    'product_name',
+}
 
+
+def _normalize_split_to_fold(df: pd.DataFrame) -> pd.DataFrame:
+    """Map ``split`` (int or ``split_0``) onto integer ``fold`` 0–4 used by fold CV."""
+    out = df.copy()
+    if 'fold' not in out.columns and 'split' in out.columns:
+        split = out['split']
+        if pd.api.types.is_numeric_dtype(split):
+            out['fold'] = pd.to_numeric(split, errors='coerce')
+        else:
+            extracted = split.astype(str).str.extract(r'(\d+)', expand=False)
+            out['fold'] = pd.to_numeric(extracted, errors='coerce')
+        n_missing = int(out['fold'].isna().sum())
+        if n_missing:
+            logger.warning("Dropping %d rows with unparsable split/fold labels", n_missing)
+            out = out.loc[out['fold'].notna()].copy()
+        out['fold'] = out['fold'].astype(int)
+    out = out.drop(columns=['split'], errors='ignore')
+    return out
+
+
+def _drop_non_gene_extra_columns(df: pd.DataFrame, extra: set[str] | None = None) -> pd.DataFrame:
+    # Keep ``drug`` — needed for ECFP attachment after fold expansion / normalization.
+    drop = {'Unnamed: 0', 'index', 'cpa_pert', 'dataset', 'dose', 'perturbation', 'gene_target'}
+    if extra:
+        drop |= extra
+    return df.drop(columns=[c for c in drop if c in df.columns], errors='ignore')
+
+
+def _aggregate_duplicate_profile_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Average gene columns for duplicate (cell_line, condition, fold) rows."""
+    keys = [c for c in ('cell_line', 'condition', 'fold') if c in df.columns]
+    if len(keys) < 2:
+        return df
+    n_dup = int(df.duplicated(subset=keys).sum())
+    if n_dup == 0:
+        return df
+    meta = [c for c in df.columns if c in PROFILE_META_COLS]
+    gene_cols = [c for c in df.columns if c not in PROFILE_META_COLS]
+    gene_cols = [c for c in gene_cols if pd.api.types.is_numeric_dtype(df[c])]
+    grouped = df.groupby(keys, as_index=False, sort=False)
+    out = grouped[gene_cols].mean()
+    extra_meta = [c for c in meta if c not in keys]
+    if extra_meta:
+        out = out.merge(grouped[extra_meta].first(), on=keys, how='left')
+    logger.info(
+        "_aggregate_duplicate_profile_rows: averaged %d duplicate rows -> %d unique keys",
+        n_dup,
+        len(out),
+    )
+    return out
+
+
+def _normalize_predicted_profile_table(df: pd.DataFrame, mcfarland_cell_line: bool = False) -> pd.DataFrame:
+    """Harmonize predicted-profile tables: cell_line, condition, integer fold."""
+    out = df.copy()
+    if 'cell_type' in out.columns and 'cell_line' not in out.columns:
+        out = out.rename(columns={'cell_type': 'cell_line'})
+    if 'cell_line' in out.columns:
+        cell = out['cell_line'].astype(str).str.strip()
+        if mcfarland_cell_line:
+            cell = cell.str.split('_').str[0].str.strip()
+        out['cell_line'] = cell.str.upper()
+    if 'condition' in out.columns:
+        if mcfarland_cell_line:
+            out['condition'] = out['condition'].astype(str).str.strip()
+        else:
+            out['condition'] = _normalize_sciplex_product_name(out['condition'])
+    out = _normalize_split_to_fold(out)
+    out = _drop_non_gene_extra_columns(out)
+    out = _aggregate_duplicate_profile_rows(out)
+    return out
+
+
+def _adata_layer_to_frame(adata, layer: str) -> pd.DataFrame:
+    """Build a profile DataFrame from an AnnData layer plus obs metadata."""
+    values = adata.layers[layer]
+    if hasattr(values, 'toarray'):
+        values = values.toarray()
+    expr = pd.DataFrame(values, columns=adata.var_names.astype(str))
+    obs = adata.obs.reset_index(drop=True)
+    return pd.concat([obs, expr], axis=1)
+
+
+def get_CPA_predictions():
+    post_predictions = pd.read_csv(os.path.join(data_dir, 'CPA_predictions', 'sciplex_mean_post.csv'))
+    lfc_predictions = pd.read_csv(os.path.join(data_dir, 'CPA_predictions', 'sciplex_mean_LFC.csv'))
+    post_predictions = _normalize_predicted_profile_table(post_predictions)
+    lfc_predictions = _normalize_predicted_profile_table(lfc_predictions)
+    return post_predictions, lfc_predictions
+
+
+def get_chemCPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load SciPlex chemCPA post-treatment and LFC tables (with fold from ``split``).
+
+    chemCPA CSVs contain predictions for every pair under all 5 split labels. Keep only
+    the held-out fold matching ``get_sciplex_pair_fold_keys`` so drug-response CV does
+    not train on the same (cell_line, condition) identities that appear in test.
+    """
+    post_predictions = pd.read_csv(os.path.join(data_dir, 'chemCPA_predictions', 'sciplex_cv_pred_post.csv'))
+    lfc_predictions = pd.read_csv(os.path.join(data_dir, 'chemCPA_predictions', 'sciplex_cv_pred_lfc.csv'))
+    post_predictions = _normalize_predicted_profile_table(post_predictions)
+    lfc_predictions = _normalize_predicted_profile_table(lfc_predictions)
+    fold_keys = get_sciplex_pair_fold_keys()
+    n_post, n_lfc = len(post_predictions), len(lfc_predictions)
+    post_predictions = align_mcfarland_profiles_to_fold_keys(post_predictions, fold_keys)
+    lfc_predictions = align_mcfarland_profiles_to_fold_keys(lfc_predictions, fold_keys)
+    logger.info(
+        "get_chemCPA_predictions: post %d→%d LFC %d→%d (held-out fold only); folds=%s",
+        n_post,
+        len(post_predictions),
+        n_lfc,
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()) if 'fold' in post_predictions.columns else [],
+    )
+    return post_predictions, lfc_predictions
+
+
+def get_McFarland_chemCPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load McFarland chemCPA post-treatment and LFC tables (fold from ``split``).
+
+    Same held-out-fold filter as SciPlex chemCPA: use CPA fold keys so each pair
+    appears in exactly one CV fold.
+    """
+    post_path = os.path.join(data_dir, 'chemCPA_predictions', 'mcfarland_cv_pred_post.csv')
+    lfc_path = os.path.join(data_dir, 'chemCPA_predictions', 'mcfarland_cv_pred_lfc.csv')
+    post_predictions = _normalize_mcfarland_profile_columns(pd.read_csv(post_path))
+    lfc_predictions = _normalize_mcfarland_profile_columns(pd.read_csv(lfc_path))
+    post_predictions, lfc_predictions = _attach_mcfarland_tissue(post_predictions, lfc_predictions)
+    if 'fold' not in post_predictions.columns or 'fold' not in lfc_predictions.columns:
+        raise ValueError("McFarland chemCPA predictions must contain a fold/split column")
+    # CPA fold table is the McFarland reference for held-out pairs.
+    cpa_post, _ = get_McFarland_CPA_predictions()
+    fold_keys = cpa_post[['cell_line', 'condition', 'fold']].drop_duplicates()
+    n_post, n_lfc = len(post_predictions), len(lfc_predictions)
+    post_predictions = align_mcfarland_profiles_to_fold_keys(post_predictions, fold_keys)
+    lfc_predictions = align_mcfarland_profiles_to_fold_keys(lfc_predictions, fold_keys)
+    logger.info(
+        "get_McFarland_chemCPA_predictions: post %d→%d LFC %d→%d (held-out fold only); folds=%s",
+        n_post,
+        len(post_predictions),
+        n_lfc,
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()),
+    )
+    return post_predictions, lfc_predictions
+
+
+def get_PRnet_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load SciPlex PRnet post (``predicted_mean``) and LFC (``predicted_lfc``) layers."""
+    path = os.path.join(data_dir, 'PRnet_predictions', 'sciplex_all_splits_predicted_pseudobulk.h5ad')
+    adata = sc.read_h5ad(path)
+    post_predictions = _normalize_predicted_profile_table(_adata_layer_to_frame(adata, 'predicted_mean'))
+    lfc_predictions = _normalize_predicted_profile_table(_adata_layer_to_frame(adata, 'predicted_lfc'))
+    logger.info(
+        "get_PRnet_predictions: post rows=%d LFC rows=%d folds=%s",
+        len(post_predictions),
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()) if 'fold' in post_predictions.columns else [],
+    )
     return post_predictions, lfc_predictions
 
 
@@ -336,6 +806,12 @@ def _resolve_mcfarland_cpa_path(filename: str) -> str:
         name_variants.extend(
             {filename.replace('lfc', 'LFC'), filename.replace('LFC', 'lfc')}
         )
+    # Prefer the current single-file export, then the older ``*_all`` names.
+    if filename.endswith('_all.csv'):
+        name_variants.append(filename.replace('_all.csv', '.csv'))
+    elif filename.endswith('.csv') and '_all' not in filename:
+        stem, ext = filename.rsplit('.', 1)
+        name_variants.append(f'{stem}_all.{ext}')
     for subdir in ('CPA_predictions', 'cpa'):
         for name in dict.fromkeys(name_variants):
             path = os.path.join(data_dir, subdir, name)
@@ -347,16 +823,18 @@ def _resolve_mcfarland_cpa_path(filename: str) -> str:
 
 
 def _normalize_mcfarland_profile_columns(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    if 'cell_type' in out.columns and 'cell_line' not in out.columns:
-        out = out.rename(columns={'cell_type': 'cell_line'})
-    if 'cell_line' in out.columns:
-        out['cell_line'] = (
-            out['cell_line'].astype(str).str.strip().str.split('_').str[0].str.strip().str.upper()
-        )
-    if 'condition' in out.columns:
-        out['condition'] = out['condition'].astype(str).str.strip()
-    return out
+    return _normalize_predicted_profile_table(df, mcfarland_cell_line=True)
+
+
+def _attach_mcfarland_tissue(post_predictions: pd.DataFrame, lfc_predictions: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    tissues = get_tissue_labels()
+    for name, frame in (('post', post_predictions), ('lfc', lfc_predictions)):
+        frame = frame.drop(columns=['tissue'], errors='ignore').merge(tissues, on='cell_line', how='left')
+        if name == 'post':
+            post_predictions = frame
+        else:
+            lfc_predictions = frame
+    return post_predictions, lfc_predictions
 
 
 def get_McFarland_CPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -365,20 +843,11 @@ def get_McFarland_CPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     Each row includes a ``fold`` column (0–4) from the CPA cross-validation splits.
     """
-    post_predictions = pd.read_csv(_resolve_mcfarland_cpa_path('mcfarland_mean_post_all.csv'))
-    lfc_predictions = pd.read_csv(
-        _resolve_mcfarland_cpa_path('mcfarland_mean_LFC_all.csv')
-    )
+    post_predictions = pd.read_csv(_resolve_mcfarland_cpa_path('mcfarland_mean_post.csv'))
+    lfc_predictions = pd.read_csv(_resolve_mcfarland_cpa_path('mcfarland_mean_LFC.csv'))
     post_predictions = _normalize_mcfarland_profile_columns(post_predictions)
     lfc_predictions = _normalize_mcfarland_profile_columns(lfc_predictions)
-
-    tissues = get_tissue_labels()
-    for name, frame in (('post', post_predictions), ('lfc', lfc_predictions)):
-        frame = frame.drop(columns=['tissue'], errors='ignore').merge(tissues, on='cell_line', how='left')
-        if name == 'post':
-            post_predictions = frame
-        else:
-            lfc_predictions = frame
+    post_predictions, lfc_predictions = _attach_mcfarland_tissue(post_predictions, lfc_predictions)
 
     if 'fold' not in post_predictions.columns:
         raise ValueError("McFarland CPA post predictions must contain a 'fold' column")
@@ -387,6 +856,24 @@ def get_McFarland_CPA_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     logger.info(
         "get_McFarland_CPA_predictions: post rows=%d LFC rows=%d folds=%s",
+        len(post_predictions),
+        len(lfc_predictions),
+        sorted(post_predictions['fold'].dropna().unique().tolist()),
+    )
+    return post_predictions, lfc_predictions
+
+
+def get_McFarland_PRnet_predictions() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load McFarland PRnet post (``predicted_mean``) and LFC (``predicted_lfc``) layers."""
+    path = os.path.join(data_dir, 'PRnet_predictions', 'mcfarland_all_splits_predicted_pseudobulk.h5ad')
+    adata = sc.read_h5ad(path)
+    post_predictions = _normalize_mcfarland_profile_columns(_adata_layer_to_frame(adata, 'predicted_mean'))
+    lfc_predictions = _normalize_mcfarland_profile_columns(_adata_layer_to_frame(adata, 'predicted_lfc'))
+    post_predictions, lfc_predictions = _attach_mcfarland_tissue(post_predictions, lfc_predictions)
+    if 'fold' not in post_predictions.columns or 'fold' not in lfc_predictions.columns:
+        raise ValueError("McFarland PRnet predictions must contain a fold/split column")
+    logger.info(
+        "get_McFarland_PRnet_predictions: post rows=%d LFC rows=%d folds=%s",
         len(post_predictions),
         len(lfc_predictions),
         sorted(post_predictions['fold'].dropna().unique().tolist()),
@@ -443,14 +930,11 @@ def compute_mcfarland_lfc_from_post_and_pre(
     post_predictions: pd.DataFrame,
     pre_treatment: pd.DataFrame,
 ) -> pd.DataFrame:
-    """LFC = post minus per-cell-line pre-treatment mean (same logic as process_mcfarland.ipynb)."""
+    """LFC = post minus per-cell-line pre-treatment mean."""
     post_predictions = _normalize_mcfarland_profile_columns(post_predictions)
     pre_treatment = _normalize_mcfarland_profile_columns(pre_treatment)
 
-    meta_cols = {
-        'cell_line', 'cell_type', 'condition', 'tissue', 'fold', 'n_cells',
-        'sens', 'target', 'sens_label', 'Unnamed: 0', 'drug',
-    }
+    meta_cols = set(PROFILE_META_COLS)
     gene_cols = [
         c
         for c in post_predictions.columns
@@ -541,6 +1025,11 @@ def expand_mcfarland_profiles_with_folds(
     """
     profiles = _normalize_mcfarland_profile_columns(profiles)
     fold_reference = _normalize_mcfarland_profile_columns(fold_reference)
+    # SciPlex baseline CSVs keep spaces in product names; fold keys strip them.
+    if 'condition' in profiles.columns:
+        profiles['condition'] = _normalize_sciplex_product_name(profiles['condition'])
+    if 'condition' in fold_reference.columns:
+        fold_reference['condition'] = _normalize_sciplex_product_name(fold_reference['condition'])
     fold_keys = fold_reference[['cell_line', 'condition', 'fold']].drop_duplicates()
     profiles = profiles.drop(columns=['fold'], errors='ignore')
     expanded = fold_keys.merge(profiles, on=['cell_line', 'condition'], how='inner')
@@ -559,6 +1048,11 @@ def align_mcfarland_profiles_to_fold_keys(
 ) -> pd.DataFrame:
     """Keep only rows matching ``(cell_line, condition, fold)`` from CPA fold assignments."""
     profiles = _normalize_mcfarland_profile_columns(profiles)
+    fold_keys = _normalize_mcfarland_profile_columns(fold_keys.copy())
+    if 'condition' in profiles.columns:
+        profiles['condition'] = _normalize_sciplex_product_name(profiles['condition'])
+    if 'condition' in fold_keys.columns:
+        fold_keys['condition'] = _normalize_sciplex_product_name(fold_keys['condition'])
     fold_keys = fold_keys[['cell_line', 'condition', 'fold']].drop_duplicates()
     if 'fold' in profiles.columns:
         aligned = fold_keys.merge(
@@ -582,16 +1076,17 @@ def log_mcfarland_profile_expression_difference(
     sample_genes: int = 500,
 ) -> None:
     """Log whether gene expression differs between observed and predicted profile tables."""
-    meta = {
-        'cell_line', 'condition', 'tissue', 'fold', 'n_cells', 'cell_type',
-        'sens', 'target', 'sens_label', 'y',
-    }
+    meta = set(PROFILE_META_COLS)
     merge_keys = ['cell_line', 'condition', 'fold']
     if not all(k in observed.columns and k in predicted.columns for k in merge_keys):
         merge_keys = ['cell_line', 'condition']
 
     obs = _normalize_mcfarland_profile_columns(observed)
     pred = _normalize_mcfarland_profile_columns(predicted)
+    if 'condition' in obs.columns:
+        obs['condition'] = _normalize_sciplex_product_name(obs['condition'])
+    if 'condition' in pred.columns:
+        pred['condition'] = _normalize_sciplex_product_name(pred['condition'])
     gene_cols = sorted(set(obs.columns) & set(pred.columns) - meta)
     if not gene_cols:
         logger.warning("%s: no shared gene columns to compare", label)
@@ -694,9 +1189,8 @@ def get_average_effect_predictions():
         post_predictions_df.append(post_predictions)
         lfc_predictions_df.append(lfc_predictions)
 
-    post_predictions_df = pd.concat(post_predictions_df, axis=0)
-    lfc_predictions_df = pd.concat(lfc_predictions_df, axis=0)
-    
+    post_predictions_df = _normalize_predicted_profile_table(pd.concat(post_predictions_df, axis=0))
+    lfc_predictions_df = _normalize_predicted_profile_table(pd.concat(lfc_predictions_df, axis=0))
     return post_predictions_df, lfc_predictions_df
 
 def get_no_effect_predictions():
@@ -707,9 +1201,7 @@ def get_no_effect_predictions():
         post_data['cell_line'] = cell_line.upper()
         result.append(post_data)
 
-    result = pd.concat(result, axis=0)
-
-    return result 
+    return _normalize_predicted_profile_table(pd.concat(result, axis=0)) 
 
 '''Helper functions'''	
 def add_y_and_normalize(df_with_sensitivity, y, normalize=True, groupby=['condition'], keep=[]):
@@ -724,8 +1216,9 @@ def add_y_and_normalize(df_with_sensitivity, y, normalize=True, groupby=['condit
     else:
         df_with_sensitivity['y'] = df_with_sensitivity[y]
 
-    columns_to_remove = list(set(['sens', 'sens_label', 'target', 'condition', 'cell_line', 'tissue']).difference(set(keep)))
-    df_with_sensitivity = df_with_sensitivity.drop(columns_to_remove, axis=1)
+    columns_to_remove = list(set(['sens', 'sens_label', 'target', 'condition', 'cell_line', 'tissue', 'product_name']).difference(set(keep)))
+    columns_to_remove = [c for c in columns_to_remove if c in df_with_sensitivity.columns]
+    df_with_sensitivity = df_with_sensitivity.drop(columns=columns_to_remove, axis=1)
     n_after_dropcols = len(df_with_sensitivity)
     df_with_sensitivity = df_with_sensitivity[df_with_sensitivity['y'].notna()]
     n_after_y = len(df_with_sensitivity)
@@ -843,7 +1336,10 @@ def get_tissue_labels():
     return(tissues)
 
 def filter_on_coefficient_of_variation(df_with_sensitivity, groupby=['tissue', 'condition'], threshold=0.5):
-    coefficient_of_variation = (df_with_sensitivity.groupby(groupby)['sens'].std() / df_with_sensitivity.groupby(groupby)['sens'].mean()).reset_index().rename(columns={'sens': 'coefficient_of_variation'}) 
+    if df_with_sensitivity.empty:
+        logger.warning('filter_on_coefficient_of_variation: empty input')
+        return df_with_sensitivity.copy()
+    coefficient_of_variation = (df_with_sensitivity.groupby(groupby)['sens'].std() / df_with_sensitivity.groupby(groupby)['sens'].mean()).reset_index().rename(columns={'sens': 'coefficient_of_variation'})
     df_with_sensitivity = pd.merge(df_with_sensitivity, coefficient_of_variation, left_on=groupby, right_on=groupby, how='left')
     df_with_sensitivity = df_with_sensitivity.dropna(axis=0)
     print("Filtering on coefficient of variation drops:")
@@ -856,15 +1352,26 @@ def filter_on_coefficient_of_variation(df_with_sensitivity, groupby=['tissue', '
 
 '''Prediction functions'''
 def feature_selection(X_train, n_features, feature_subset=[]):
-    remove_columns = ['y', 'tissue', 'cell_line', 'target', 'drug', 'condition', 'perturbation', 'cell_type', 'fold', 'n_cells']
+    remove_columns = [
+        'y', 'tissue', 'cell_line', 'target', 'drug', 'condition', 'perturbation',
+        'cell_type', 'fold', 'split', 'n_cells', 'n_replicates', 'replicate',
+        'dose', 'cpa_pert', 'dataset', 'sens', 'sens_label', 'product_name',
+    ]
+    remove_columns.extend(
+        c for c in X_train.columns if str(c).startswith('ecfp_')
+    )
     remove_columns = list(set(remove_columns).difference(feature_subset))
     for c in remove_columns:
         if c in X_train.columns:
             X_train = X_train.drop(columns=c)
 
-    if len(feature_subset) == 0:
-        variances = X_train.var(axis=0)
-        selected_features = variances.nlargest(n_features).index.tolist()
+    numeric = X_train.select_dtypes(include=[np.number])
+    if numeric.shape[1] == 0:
+        logger.warning("feature_selection: no numeric columns after dropping metadata")
+        selected_features = list(feature_subset) if feature_subset else []
+    elif len(feature_subset) == 0:
+        variances = numeric.var(axis=0)
+        selected_features = variances.nlargest(min(n_features, len(variances))).index.tolist()
     else:
         selected_features = feature_subset
 

@@ -1,7 +1,6 @@
 import os
 import sys
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -9,7 +8,9 @@ from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error as mse
 
 # Add project root to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+_eval_dir = Path(__file__).parent
+sys.path.insert(0, str(_eval_dir))
+sys.path.append(str(_eval_dir.parent.parent))
 from config import config, setup_project
 from utils import (
     ensure_directories_exist,
@@ -18,13 +19,31 @@ from utils import (
     setup_logging_for_script,
 )
 from compute_de_genes import main as compute_de_genes_main
+from mcfarland_profile_metrics import (
+    compute_metrics_with_systema_mcfarland,
+    load_sciplex_de_genes,
+    map_sciplex_conditions_to_gene_targets,
+    pair_metrics_to_long_df,
+    prepare_predictions_for_systema,
+    _get_common_gene_columns,
+    _iter_matched_pairs,
+    _profiles_for_matching,
+)
+from prediction_io import (
+    SCIPLEX_CELL_LINES,
+    align_sciplex_profile_conditions,
+    drop_control_rows,
+    filter_sciplex_cell_line,
+    load_cpa_post,
+    load_chemcpa_post,
+    load_prnet_post,
+    load_sciplex_observed_post,
+    load_sciplex_observed_post_all,
+)
 from systema_reference import (
-    leave_one_split_reference_vectors,
-    leave_one_split_reference_vectors_per_cell_line,
-    observation_profiles_with_split,
+    reference_vector_all_non_control,
     reference_vectors_per_cell_line_non_control,
     resolve_cell_line_column,
-    resolve_split_column,
 )
 
 setup_project()
@@ -42,16 +61,6 @@ CONTROL_CONDITION = "ctrl"
 SCIPLEX_KEY_COLS = ("cell_type", "condition")
 
 
-def _get_common_gene_columns(
-    predictions: pd.DataFrame, observations: pd.DataFrame, excluded_cols: Iterable[str] = ("condition", "cell_type")
-) -> list[str]:
-    excluded = set(excluded_cols)
-    common_columns = [c for c in predictions.columns if c in observations.columns and c not in excluded]
-    if not common_columns:
-        raise ValueError("No common gene columns found between predictions and observations.")
-    return common_columns
-
-
 def _safe_pearson(x: np.ndarray, y: np.ndarray) -> float:
     val = pearsonr(x, y)[0]
     if np.isnan(val):
@@ -59,20 +68,18 @@ def _safe_pearson(x: np.ndarray, y: np.ndarray) -> float:
     return float(val)
 
 
-def _systema_reference_all_non_control(
-    observations: pd.DataFrame, gene_columns: list[str]
-) -> pd.Series:
-    """Fallback when profiles lack fold/split labels (current SciPlex pseudobulks)."""
-    observations_no_ctrl = observations[observations["condition"] != CONTROL_CONDITION]
-    if observations_no_ctrl.empty:
-        raise ValueError("No non-control observations available to compute Systema reference vector.")
-    return observations_no_ctrl[gene_columns].mean(axis=0)
+def _load_sciplex_reference_observations() -> pd.DataFrame:
+    """Pooled observed post profiles across all SciPlex lines (564 pairs when fully measured)."""
+    return align_sciplex_profile_conditions(load_sciplex_observed_post_all(data_dir))
 
 
 def compute_metrics_with_systema(
     predictions: pd.DataFrame,
     observations: pd.DataFrame,
     de_genes: pd.DataFrame,
+    *,
+    reference_observations: pd.DataFrame | None = None,
+    sciplex_normalize_condition: bool = True,
 ) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
     metrics: dict[str, list[float]] = {
         "mse": [],
@@ -86,58 +93,45 @@ def compute_metrics_with_systema(
     }
     metrics_pert: dict[str, dict[str, float]] = {}
 
+    predictions = _profiles_for_matching(
+        predictions, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    observations = _profiles_for_matching(
+        observations, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    de_genes = _profiles_for_matching(
+        de_genes, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+    ref_source = reference_observations if reference_observations is not None else observations
+    ref_source = _profiles_for_matching(
+        ref_source, sciplex_normalize_condition=sciplex_normalize_condition
+    )
+
     gene_columns = _get_common_gene_columns(predictions, observations)
-    split_col = resolve_split_column(predictions)
-    cell_line_col = resolve_cell_line_column(observations)
-    if split_col is not None:
-        ref_profiles = observation_profiles_with_split(
-            observations, predictions, key_cols=SCIPLEX_KEY_COLS
-        )
-        reference_by_split = leave_one_split_reference_vectors(
-            ref_profiles, gene_columns, split_col
-        )
-        reference_by_split_cellline = leave_one_split_reference_vectors_per_cell_line(
-            ref_profiles, gene_columns, split_col, cell_line_col=cell_line_col
-        )
-        reference_by_cellline = None
-        reference_vector = None
-    else:
-        reference_by_split = None
-        reference_by_split_cellline = None
-        reference_vector = _systema_reference_all_non_control(observations, gene_columns)
-        reference_by_cellline = reference_vectors_per_cell_line_non_control(
-            observations, gene_columns, cell_line_col=cell_line_col
+    cell_line_col = resolve_cell_line_column(ref_source)
+    reference_vector = reference_vector_all_non_control(
+        ref_source, gene_columns, cell_line_col=cell_line_col
+    )
+    reference_by_cellline = reference_vectors_per_cell_line_non_control(
+        ref_source, gene_columns, cell_line_col=cell_line_col
+    )
+
+    for cell_line, pert, pred_row, obs_row in _iter_matched_pairs(
+        predictions,
+        observations,
+        sciplex_normalize_condition=False,
+    ):
+        predicted_expression = pred_row[gene_columns].to_numpy(dtype=float)
+        true_expression = obs_row[gene_columns].to_numpy(dtype=float)
+        cell_line_value = str(cell_line)
+        ref_expr_cl = (
+            reference_by_cellline[cell_line_value].to_numpy(dtype=float)
+            if cell_line_value in reference_by_cellline
+            else None
         )
 
-    for pert in np.unique(predictions["condition"]):
-        predicted_rows = predictions[predictions["condition"] == pert]
-        observed_rows = observations[observations["condition"] == pert]
-        if predicted_rows.empty or observed_rows.empty:
-            continue
-
-        predicted_expression = predicted_rows[gene_columns].iloc[0].to_numpy(dtype=float)
-        true_expression = observed_rows[gene_columns].iloc[0].to_numpy(dtype=float)
-        cell_line_value = str(predicted_rows[cell_line_col].iloc[0])
-
-        if reference_by_split is not None:
-            split_value = int(predicted_rows[split_col].iloc[0])
-            reference_expression = reference_by_split[split_value].to_numpy(dtype=float)
-            ref_key = (split_value, cell_line_value)
-            ref_expr_cl = (
-                reference_by_split_cellline[ref_key].to_numpy(dtype=float)
-                if ref_key in reference_by_split_cellline
-                else None
-            )
-        else:
-            reference_expression = reference_vector.to_numpy(dtype=float)
-            ref_expr_cl = (
-                reference_by_cellline[cell_line_value].to_numpy(dtype=float)
-                if cell_line_value in reference_by_cellline
-                else None
-            )
-
-        centered_pred = predicted_expression - reference_expression
-        centered_true = true_expression - reference_expression
+        centered_pred = predicted_expression - reference_vector.to_numpy(dtype=float)
+        centered_true = true_expression - reference_vector.to_numpy(dtype=float)
 
         metrics_pert[pert] = {
             "mse": float(mse(predicted_expression, true_expression)),
@@ -164,9 +158,19 @@ def compute_metrics_with_systema(
             metrics_pert[pert]["pearson_systema_cellline_de"] = 0.0
             continue
 
+        de_rows = de_genes[
+            (de_genes["condition"] == pert)
+            & (de_genes[cell_line_col].astype(str).str.upper() == cell_line_value)
+        ]
+        if de_rows.empty:
+            metrics_pert[pert]["mse_de"] = 0.0
+            metrics_pert[pert]["pearson_de"] = 0.0
+            metrics_pert[pert]["pearson_systema_de"] = 0.0
+            metrics_pert[pert]["pearson_systema_cellline_de"] = 0.0
+            continue
+
         de_gene_subset = (
-            de_genes[de_genes["condition"] == pert]
-            .drop(columns=["cell_type", "condition"], errors="ignore")
+            de_rows.drop(columns=["cell_type", "cell_line", "condition"], errors="ignore")
             .iloc[0, 0:20]
             .tolist()
         )
@@ -178,22 +182,14 @@ def compute_metrics_with_systema(
             metrics_pert[pert]["pearson_systema_cellline_de"] = 0.0
             continue
 
-        pred_de = predicted_rows[de_gene_subset].iloc[0].to_numpy(dtype=float)
-        true_de = observed_rows[de_gene_subset].iloc[0].to_numpy(dtype=float)
-        if reference_by_split is not None:
-            ref_de = reference_by_split[split_value][de_gene_subset].to_numpy(dtype=float)
-            ref_de_cl = (
-                reference_by_split_cellline[ref_key][de_gene_subset].to_numpy(dtype=float)
-                if ref_expr_cl is not None
-                else None
-            )
-        else:
-            ref_de = reference_vector[de_gene_subset].to_numpy(dtype=float)
-            ref_de_cl = (
-                reference_by_cellline[cell_line_value][de_gene_subset].to_numpy(dtype=float)
-                if ref_expr_cl is not None
-                else None
-            )
+        pred_de = pred_row[de_gene_subset].to_numpy(dtype=float)
+        true_de = obs_row[de_gene_subset].to_numpy(dtype=float)
+        ref_de = reference_vector[de_gene_subset].to_numpy(dtype=float)
+        ref_de_cl = (
+            reference_by_cellline[cell_line_value][de_gene_subset].to_numpy(dtype=float)
+            if ref_expr_cl is not None
+            else None
+        )
 
         centered_pred_de = pred_de - ref_de
         centered_true_de = true_de - ref_de
@@ -220,18 +216,13 @@ def compute_metrics_with_systema(
     return metrics_mean, metrics_pert
 
 
-def _load_de_genes_for_cell_line(cell_line: str) -> pd.DataFrame:
-    de_genes = pd.read_csv(os.path.join(results_dir, f"sciplex{cell_line}_de_genes.csv"))
-    pert_to_drug = pd.read_csv(os.path.join(resources_dir, "sciplex_drug_to_perturbation.csv"), index_col=0)
-    pert_to_drug["product_name"] = pert_to_drug["product_name"].str.replace(" ", "")
-
-    de_genes = (
-        pd.merge(de_genes, pert_to_drug, left_on=["condition"], right_on=["product_name"], how="left")
-        .drop(columns=["product_name", "condition"])
-        .rename(columns={"target": "condition"})
+def _load_de_genes_for_cell_line(cell_line: str, *, condition_key: str = 'product_name') -> pd.DataFrame:
+    return load_sciplex_de_genes(
+        results_dir,
+        cell_line,
+        resources_dir,
+        condition_key=condition_key,
     )
-    de_genes["cell_type"] = cell_line.upper()
-    return de_genes
 
 
 def _write_perturbation_metrics(
@@ -252,9 +243,16 @@ def _evaluate_and_save(
     cell_line: str,
     model_name: str,
     output_suffix: str,
+    *,
+    reference_observations: pd.DataFrame,
 ) -> None:
+    predictions = align_sciplex_profile_conditions(predictions)
+    observations = align_sciplex_profile_conditions(observations)
     _, pert_metrics = compute_metrics_with_systema(
-        predictions=predictions, observations=observations, de_genes=de_genes
+        predictions=predictions,
+        observations=observations,
+        de_genes=de_genes,
+        reference_observations=reference_observations,
     )
     _write_perturbation_metrics(
         pert_metrics=pert_metrics,
@@ -265,6 +263,7 @@ def _evaluate_and_save(
 
 
 def evaluate_average_effect_predictions() -> None:
+    reference_observations = _load_sciplex_reference_observations()
     for cell_line in ["mcf7", "a549", "k562"]:
         predictions = pd.read_csv(
             os.path.join(data_dir, "average_effect_predictions", f"sciplex_mean_post_{cell_line}.csv")
@@ -273,20 +272,38 @@ def evaluate_average_effect_predictions() -> None:
             os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
         )
         de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "Average effect", "average_effect")
+        _evaluate_and_save(
+            predictions,
+            observations,
+            de_genes,
+            cell_line,
+            "Average effect",
+            "average_effect",
+            reference_observations=reference_observations,
+        )
 
 
 def evaluate_no_effect_predictions() -> None:
+    reference_observations = _load_sciplex_reference_observations()
     for cell_line in ["mcf7", "a549", "k562"]:
         predictions = pd.read_csv(os.path.join(data_dir, "no_effect_predictions", f"sciplex_mean_post_{cell_line}.csv"))
         observations = pd.read_csv(
             os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
         )
         de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "No effect", "no_effect")
+        _evaluate_and_save(
+            predictions,
+            observations,
+            de_genes,
+            cell_line,
+            "No effect",
+            "no_effect",
+            reference_observations=reference_observations,
+        )
 
 
 def evaluate_gears_predictions() -> None:
+    reference_observations = _load_sciplex_reference_observations()
     for cell_line in ["mcf7", "a549", "k562"]:
         predictions = pd.read_csv(os.path.join(data_dir, "GEARS_predictions", f"sciplex_mean_post_{cell_line}.csv"), index_col=0)
         predictions = predictions.rename(columns={"perturbation": "condition"})
@@ -294,11 +311,21 @@ def evaluate_gears_predictions() -> None:
         observations = pd.read_csv(
             os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
         )
-        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "GEARS", "GEARS")
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line, condition_key='gene_target')
+        _evaluate_and_save(
+            predictions,
+            observations,
+            de_genes,
+            cell_line,
+            "GEARS",
+            "GEARS",
+            reference_observations=reference_observations,
+        )
 
 
 def evaluate_gears_noreg_predictions() -> None:
+    reference_observations = _load_sciplex_reference_observations()
     for cell_line in ["mcf7", "a549", "k562"]:
         predictions = pd.read_csv(
             os.path.join(data_dir, "GEARS_noreg_predictions", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
@@ -308,11 +335,21 @@ def evaluate_gears_noreg_predictions() -> None:
         observations = pd.read_csv(
             os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
         )
-        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "GEARS_noreg", "GEARS_noreg")
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line, condition_key='gene_target')
+        _evaluate_and_save(
+            predictions,
+            observations,
+            de_genes,
+            cell_line,
+            "GEARS_noreg",
+            "GEARS_noreg",
+            reference_observations=reference_observations,
+        )
 
 
 def evaluate_scfoundation_predictions() -> None:
+    reference_observations = _load_sciplex_reference_observations()
     for cell_line in ["mcf7", "a549", "k562"]:
         predictions = pd.read_csv(
             os.path.join(data_dir, "scfoundation_predictions", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
@@ -322,19 +359,60 @@ def evaluate_scfoundation_predictions() -> None:
         observations = pd.read_csv(
             os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
         )
-        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "scfoundation", "scfoundation")
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line, condition_key='gene_target')
+        _evaluate_and_save(
+            predictions,
+            observations,
+            de_genes,
+            cell_line,
+            "scFoundation",
+            "scfoundation",
+            reference_observations=reference_observations,
+        )
 
 
 def evaluate_cpa_predictions() -> None:
-    for cell_line in ["mcf7", "a549", "k562"]:
-        predictions = pd.read_csv(os.path.join(data_dir, "CPA_predictions", f"sciplex_mean_post_{cell_line}.csv"))
-        predictions = predictions[predictions["condition"] != CONTROL_CONDITION]
-        observations = pd.read_csv(
-            os.path.join(data_dir, "observed_pseudobulk", f"sciplex_mean_post_{cell_line}.csv"), index_col=0
+    predictions = drop_control_rows(load_cpa_post(data_dir, "sciplex"))
+    _evaluate_combined_sciplex_systema(predictions, "CPA", "CPA")
+
+
+def evaluate_chemcpa_predictions() -> None:
+    predictions = drop_control_rows(load_chemcpa_post(data_dir, "sciplex"))
+    _evaluate_combined_sciplex_systema(predictions, "chemCPA", "chemCPA")
+
+
+def evaluate_prnet_predictions() -> None:
+    predictions = drop_control_rows(load_prnet_post(data_dir, "sciplex"))
+    _evaluate_combined_sciplex_systema(predictions, "PRnet", "PRnet")
+
+
+def _evaluate_combined_sciplex_systema(
+    predictions: pd.DataFrame,
+    model_name: str,
+    output_suffix: str,
+) -> None:
+    reference_observations = _load_sciplex_reference_observations()
+    predictions = align_sciplex_profile_conditions(predictions)
+    for cell_line in SCIPLEX_CELL_LINES:
+        pred = filter_sciplex_cell_line(predictions, cell_line)
+        observations = align_sciplex_profile_conditions(load_sciplex_observed_post(data_dir, cell_line))
+        de_genes = align_sciplex_profile_conditions(_load_de_genes_for_cell_line(cell_line=cell_line))
+        pred = prepare_predictions_for_systema(pred, observations, split_template=pred)
+        _, pair_metrics = compute_metrics_with_systema_mcfarland(
+            predictions=pred,
+            observations=observations,
+            de_genes=de_genes,
+            split_template=pred,
+            reference_observations=reference_observations,
+            sciplex_normalize_condition=False,
         )
-        de_genes = _load_de_genes_for_cell_line(cell_line=cell_line)
-        _evaluate_and_save(predictions, observations, de_genes, cell_line, "CPA", "CPA")
+        out = pair_metrics_to_long_df(pair_metrics, model_name=model_name)
+        out = out.rename(columns={"cell_line": "cell_type"})
+        out.to_csv(
+            os.path.join(results_dir, f"sciplex{cell_line}_{output_suffix}_systema_outcomes.csv"),
+            index=False,
+        )
 
 
 def main() -> None:
@@ -360,6 +438,10 @@ def main() -> None:
         evaluate_scfoundation_predictions()
         logger.info("Evaluating CPA predictions (Systema metrics)...")
         evaluate_cpa_predictions()
+        logger.info("Evaluating chemCPA predictions (Systema metrics)...")
+        evaluate_chemcpa_predictions()
+        logger.info("Evaluating PRnet predictions (Systema metrics)...")
+        evaluate_prnet_predictions()
         logger.info("Systema evaluation completed successfully")
     except Exception as exc:
         logger.error(f"Error in evaluate_predictions_sciplex_systema: {str(exc)}")

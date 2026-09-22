@@ -12,10 +12,28 @@ from sklearn.metrics import mean_squared_error as mse
 from scipy.stats import pearsonr
 
 # Add project root to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
+_eval_dir = Path(__file__).parent
+sys.path.insert(0, str(_eval_dir))
+sys.path.append(str(_eval_dir.parent.parent))
 from config import config, setup_project
 from utils import setup_logging_for_script, log_script_start, log_script_end, ensure_directories_exist
 from compute_de_genes import main as compute_de_genes_main
+from mcfarland_profile_metrics import (
+    compute_metrics_from_means_mcfarland,
+    load_sciplex_de_genes,
+    map_sciplex_conditions_to_gene_targets,
+    pair_metrics_to_long_df,
+    prepare_predictions_for_evaluation,
+)
+from prediction_io import (
+    SCIPLEX_CELL_LINES,
+    drop_control_rows,
+    filter_sciplex_cell_line,
+    load_cpa_post,
+    load_chemcpa_post,
+    load_prnet_post,
+    load_sciplex_observed_post,
+)
 
 # Setup project and logging
 setup_project()
@@ -246,12 +264,7 @@ def evaluate_average_effect_predictions():
     for cell_line in ['mcf7','a549','k562']:
         average_effect_predictions =  pd.read_csv(os.path.join(data_dir, 'average_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'))
         observations = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()
+        de_genes = load_sciplex_de_genes(results_dir, cell_line)
 
         metrics, pert_metrics = compute_metrics_from_means(average_effect_predictions, observations, de_genes, plot=False)
         pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
@@ -267,12 +280,7 @@ def evaluate_no_effect_predictions():
     for cell_line in ['mcf7','a549','k562']:
         no_effect_predictions =  pd.read_csv(os.path.join(data_dir, 'no_effect_predictions', f'sciplex_mean_post_{cell_line}.csv'))
         observations = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()
+        de_genes = load_sciplex_de_genes(results_dir, cell_line)
 
         metrics, pert_metrics = compute_metrics_from_means(no_effect_predictions, observations, de_genes, plot=False)
         pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
@@ -289,12 +297,8 @@ def evaluate_GEARS_predictions():
         predictions = predictions.rename(columns={'perturbation':'condition'})
         predictions = predictions[predictions['condition'] != 'ctrl']
         observations = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = load_sciplex_de_genes(results_dir, cell_line, resources_dir, condition_key='gene_target')
 
         metrics, pert_metrics = compute_metrics_from_means(predictions, observations, de_genes, plot=False)
         pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
@@ -311,13 +315,8 @@ def evaluate_GEARS_noreg_predictions():
         predictions = predictions.rename(columns={'perturbation':'condition'})
         predictions = predictions[predictions['condition'] != 'ctrl']
         observations = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
-
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = load_sciplex_de_genes(results_dir, cell_line, resources_dir, condition_key='gene_target')
 
         metrics, pert_metrics = compute_metrics_from_means(predictions, observations, de_genes, plot=False)
         pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
@@ -334,48 +333,65 @@ def evaluate_scfoundation_predictions():
         predictions = predictions.rename(columns={'perturbation':'condition'})
         predictions = predictions[predictions['condition'] != 'ctrl']
         observations = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
-
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
-
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()
+        observations = map_sciplex_conditions_to_gene_targets(observations, resources_dir)
+        de_genes = load_sciplex_de_genes(results_dir, cell_line, resources_dir, condition_key='gene_target')
 
         metrics, pert_metrics = compute_metrics_from_means(predictions, observations, de_genes, plot=False)
         pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
         pert_metrics['condition'] = pert_metrics.index
         pert_metrics = pert_metrics.melt(id_vars='condition', var_name='metric', value_name='value')
         pert_metrics['cell_type'] = cell_line.upper()
-        pert_metrics['model'] = 'scfoundation'
+        pert_metrics['model'] = 'scFoundation'
 
         pert_metrics.to_csv(os.path.join(results_dir, f'sciplex{cell_line}_scfoundation_outcomes.csv'), index=False)
 
+
+def _load_de_genes_for_cell_line(cell_line: str, *, condition_key: str = 'product_name') -> pd.DataFrame:
+    return load_sciplex_de_genes(
+        results_dir,
+        cell_line,
+        resources_dir,
+        condition_key=condition_key,
+    )
+
+
+def _evaluate_combined_sciplex_model(
+    predictions: pd.DataFrame,
+    model_name: str,
+    output_stem: str,
+) -> None:
+    predictions = drop_control_rows(predictions)
+    for cell_line in SCIPLEX_CELL_LINES:
+        pred = filter_sciplex_cell_line(predictions, cell_line)
+        observations = load_sciplex_observed_post(data_dir, cell_line)
+        de_genes = _load_de_genes_for_cell_line(cell_line)
+        pred = prepare_predictions_for_evaluation(pred, observations)
+        _, pair_metrics = compute_metrics_from_means_mcfarland(
+            predictions=pred,
+            observations=observations,
+            de_genes=de_genes,
+        )
+        out = pair_metrics_to_long_df(pair_metrics, model_name=model_name)
+        out = out.rename(columns={'cell_line': 'cell_type'})
+        out.to_csv(
+            os.path.join(results_dir, f'sciplex{cell_line}_{output_stem}_outcomes.csv'),
+            index=False,
+        )
+
+
 def evaluate_CPA_predictions():
-    for cell_line in ['mcf7','a549','k562']:
-        cpa_predictions = pd.read_csv(os.path.join(data_dir, 'CPA_predictions', f'sciplex_mean_post_{cell_line}.csv'))
-        cpa_predictions = cpa_predictions[cpa_predictions['condition'] != 'ctrl']
-        true_expression = pd.read_csv(os.path.join(data_dir, 'observed_pseudobulk', f'sciplex_mean_post_{cell_line}.csv'), index_col=0)
-        de_genes = pd.read_csv(os.path.join(results_dir, f'sciplex{cell_line}_de_genes.csv'))
+    predictions = load_cpa_post(data_dir, 'sciplex')
+    _evaluate_combined_sciplex_model(predictions, 'CPA', 'CPA')
 
-        pert_to_drug = pd.read_csv(os.path.join(resources_dir, 'sciplex_drug_to_perturbation.csv'),index_col=0)
-        pert_to_drug['product_name'] = pert_to_drug['product_name'].str.replace(' ', '')
 
-        print(cpa_predictions.head())
-        print(cpa_predictions.columns)
+def evaluate_chemcpa_predictions():
+    predictions = load_chemcpa_post(data_dir, 'sciplex')
+    _evaluate_combined_sciplex_model(predictions, 'chemCPA', 'chemCPA')
 
-        de_genes = pd.merge(de_genes, pert_to_drug, left_on=['condition'],right_on=['product_name'], how='left').drop(columns=['product_name', 'condition']).rename(columns={'target':'condition'})
-        de_genes['cell_type'] = cell_line.upper()       
 
-        metrics, pert_metrics = compute_metrics_from_means(cpa_predictions, true_expression, de_genes, plot=False)
-        pert_metrics = pd.DataFrame.from_dict(pert_metrics, orient='index')
-        pert_metrics['condition'] = pert_metrics.index
-        pert_metrics = pert_metrics.melt(id_vars='condition', var_name='metric', value_name='value')
-        pert_metrics['cell_type'] = cell_line.upper()
-        pert_metrics['model'] = 'scfoundation'
-
-        pert_metrics.to_csv(os.path.join(results_dir, f'sciplex{cell_line}_CPA_outcomes.csv'), index=False)
-        
+def evaluate_prnet_predictions():
+    predictions = load_prnet_post(data_dir, 'sciplex')
+    _evaluate_combined_sciplex_model(predictions, 'PRnet', 'PRnet')
 
 if __name__ == '__main__':
     log_script_start(__file__, logger)
@@ -400,6 +416,10 @@ if __name__ == '__main__':
         evaluate_scfoundation_predictions()
         logger.info("Evaluating CPA predictions...")
         evaluate_CPA_predictions()
+        logger.info("Evaluating chemCPA predictions...")
+        evaluate_chemcpa_predictions()
+        logger.info("Evaluating PRnet predictions...")
+        evaluate_prnet_predictions()
         logger.info("Evaluation completed successfully")
     except Exception as e:
         logger.error(f"Error in evaluate_predictions_sciplex: {str(e)}")

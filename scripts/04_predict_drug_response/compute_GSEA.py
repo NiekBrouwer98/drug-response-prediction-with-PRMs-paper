@@ -10,6 +10,13 @@ import gseapy as gp
 from gseapy import barplot, dotplot
 
 from config import config
+from feature_importance_io import (
+    DEFAULT_MCFARLAND_FI_PREFIX,
+    DEFAULT_SCIPLEX_FI_PREFIX,
+    build_cpa_family_gsea_feature_tables,
+    build_sciplex_gsea_feature_tables,
+    load_split_cv_feature_importance_with_observed_fallback,
+)
 
 # Set project directories using configuration
 home_dir = str(config.PROJECT_ROOT)
@@ -88,61 +95,48 @@ def get_mcfarland_feature_importance():
     feature_importance_means.to_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means_filtered.csv'))
 
 
-def get_sciplex_feature_importance():
-    sciplex_feature_importance = []
+def get_sciplex_feature_importance(
+    results_prefix: str = DEFAULT_SCIPLEX_FI_PREFIX,
+    *,
+    smiles: bool = True,
+    gene_features_only: bool = True,
+) -> dict[str, pd.DataFrame]:
+    """All-model SciPlex importances from split-CV ElasticNet (SMILES pickles by default).
 
-    for i in range(0,5):
-        split_feature_importance = pd.read_csv(os.path.join(results_dir, f'post_sciplex_regression_predictions_CV_twostep_AUC_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Post', condition='Full Sciplex dataset').assign(split=i).reset_index(drop=True)
-        split_feature_importance_lfc = pd.read_csv(os.path.join(results_dir, f'LFC_sciplex_regression_predictions_CV_twostep_AUC_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Log(fold change)', condition='Full sciplex dataset').assign(split=i).reset_index(drop=True)
-        sciplex_feature_importance.append(split_feature_importance)
-        sciplex_feature_importance.append(split_feature_importance_lfc)
-
-    sciplex_feature_importance = pd.concat(sciplex_feature_importance, ignore_index=True)
-    sciplex_feature_importance = sciplex_feature_importance.drop(columns=['split']).groupby(['condition','model']).mean().reset_index()
-    sciplex_lfc_feature_importance = sciplex_feature_importance[sciplex_feature_importance['model'] == 'Log(fold change)']
-    sciplex_post_feature_importance = sciplex_feature_importance[sciplex_feature_importance['model'] == 'Post']
-
-    all_feature_importance = {'post': sciplex_post_feature_importance,
-                        'lfc': sciplex_lfc_feature_importance}
-
-    models = ['no_effect', 'average_effect', 'GEARS', 'GEARS_noreg', 'CPA', 'scFoundation']
-
-    post_df = []
-    lfc_df = []
-    for m in models:
-        for i in range(0,5):
-            split_feature_importance = pd.read_csv(os.path.join(results_dir, f'post_sciplex_regression_predictions_selftrained_CV_twostep_AUC_{m}_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Post', condition='Full Sciplex dataset', model_type=m).assign(split=i).reset_index(drop=True)
-            split_feature_importance_lfc = pd.read_csv(os.path.join(results_dir, f'LFC_sciplex_regression_predictions_selftrained_CV_twostep_AUC_{m}_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Log(fold change)', condition='Full sciplex dataset', model_type=m).assign(split=i).reset_index(drop=True)
-            post_df.append(split_feature_importance)
-            lfc_df.append(split_feature_importance_lfc)
-            
-    for i in range(0,5):
-            split_feature_importance = pd.read_csv(os.path.join(results_dir, f'post_sciplex_regression_predictions_selftrained_CV_twostep_AUC_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Post', condition='Full Sciplex dataset', model_type='Observed').assign(split=i).reset_index(drop=True)
-            split_feature_importance_lfc = pd.read_csv(os.path.join(results_dir, f'LFC_sciplex_regression_predictions_selftrained_CV_twostep_AUC_{i}_twopart_feature_importance.csv'), index_col=0).T.assign(model='Log(fold change)', condition='Full sciplex dataset', model_type='Observed').assign(split=i).reset_index(drop=True)
-            post_df.append(split_feature_importance)
-            lfc_df.append(split_feature_importance_lfc)
-
-    post_df = pd.concat(post_df, ignore_index=True)
-    lfc_df = pd.concat(lfc_df, ignore_index=True)
-
-    post_df = post_df.drop(columns=['split']).groupby(['condition','model', 'model_type']).mean().reset_index()
-    lfc_df = lfc_df.drop(columns=['split']).groupby(['condition','model', 'model_type']).mean().reset_index()
-
-    post_df['model_type'] = post_df['model_type'].str.replace('GEARS_noreg', 'GEARS\nOptimized')
-    post_df['model_type'] = post_df['model_type'].str.replace('average_effect', 'Average effect')
-    post_df['model_type'] = post_df['model_type'].str.replace('no_effect', 'No effect')
-
-    lfc_df['model_type'] = lfc_df['model_type'].str.replace('GEARS_noreg', 'GEARS\nOptimized')
-    lfc_df['model_type'] = lfc_df['model_type'].str.replace('average_effect', 'Average effect')
-    lfc_df['model_type'] = lfc_df['model_type'].str.replace('no_effect', 'No effect')
-
-    for model_type in post_df['model_type'].unique():
-        all_feature_importance[f'post_{model_type}'] = post_df[post_df['model_type']==model_type].drop(columns=['model_type'])
-        all_feature_importance[f'lfc_{model_type}'] = lfc_df[lfc_df['model_type']==model_type].drop(columns=['model_type'])
-
-    with open(os.path.join(results_dir,'sciplex_feature_importances.pkl'), 'wb') as f:
+    Gene features only are retained for GSEA when ``gene_features_only`` is True.
+    """
+    fi_pickle = load_split_cv_feature_importance_with_observed_fallback(
+        results_dir, results_prefix,
+    )
+    all_feature_importance = build_sciplex_gsea_feature_tables(
+        fi_pickle, smiles=smiles, gene_features_only=gene_features_only,
+    )
+    with open(os.path.join(results_dir, 'sciplex_feature_importances.pkl'), 'wb') as f:
         pkl.dump(all_feature_importance, f)
+    return all_feature_importance
 
+
+def get_mcfarland_split_cv_feature_importance(
+    results_prefix: str = DEFAULT_MCFARLAND_FI_PREFIX,
+    *,
+    smiles: bool = True,
+    gene_features_only: bool = True,
+) -> dict[str, pd.DataFrame]:
+    """All-model McFarland importances from split-CV ElasticNet (SMILES pickles by default).
+
+    Gene features only are retained for GSEA when ``gene_features_only`` is True.
+    """
+    fi_pickle = load_split_cv_feature_importance_with_observed_fallback(
+        results_dir, results_prefix,
+    )
+    all_feature_importance = build_cpa_family_gsea_feature_tables(
+        fi_pickle,
+        condition='Full McFarland dataset',
+        smiles=smiles,
+        gene_features_only=gene_features_only,
+    )
+    with open(os.path.join(results_dir, 'mcfarland_feature_importances.pkl'), 'wb') as f:
+        pkl.dump(all_feature_importance, f)
     return all_feature_importance
 
 def perform_mcfarland_GSEA(feature_importance):
@@ -188,48 +182,48 @@ def perform_mcfarland_GSEA(feature_importance):
             res.to_csv(os.path.join(results_dir, f'GSEA_{column_name}.csv'))
 
 
-def perform_sciplex_GSEA(feature_importance):
+def perform_cpa_family_GSEA(feature_importance: dict[str, pd.DataFrame], dataset: str) -> None:
     for key, df in feature_importance.items():
         print(key)
 
-        df = df.iloc[0:1,2:].T.reset_index()
+        df = df.iloc[0:1, 2:].T.reset_index()
         print(df.columns[1])
-        df = df.sort_values(df.columns[1]).rename(columns={'index': 'gene_name', df.columns[1] : 'score'})
-        df = df[df['score']!= 0]
+        df = df.sort_values(df.columns[1]).rename(columns={'index': 'gene_name', df.columns[1]: 'score'})
+        df = df[df['score'] != 0]
         print(df.shape)
         key = key.replace('\n', '_')
-        df.to_csv(os.path.join(results_dir, f'sciplex_{key}.rnk'), sep="\t", index=False, header=False)
+        rnk_path = os.path.join(results_dir, f'{dataset}_{key}.rnk')
+        df.to_csv(rnk_path, sep='\t', index=False, header=False)
 
         try:
             pre_res = gp.prerank(
-            rnk=os.path.join(results_dir, f'sciplex_{key}.rnk'),                      # ranked gene list
-            gene_sets="MSigDB_Hallmark_2020",                   # or a .gmt file or other gene set name from Enrichr
-            outdir="gsea_results",                   # output directory
-            permutation_num=1000,                    # number of permutations
-            min_size=1,                             # minimum size of gene sets
-            max_size=1000,                            # maximum size of gene sets
-            seed=42,
-            verbose=True
+                rnk=rnk_path,
+                gene_sets='MSigDB_Hallmark_2020',
+                outdir='gsea_results',
+                permutation_num=1000,
+                min_size=1,
+                max_size=1000,
+                seed=42,
+                verbose=True,
             )
             res = pre_res.res2d.copy()
             res['-log10(FDR)'] = -np.log10(res['FDR q-val'].astype(float))
             res['Term'] = res['Term'].str.replace(r'\s*Homo.*', '', regex=True)
-
-            res.to_csv(os.path.join(results_dir, f'GSEA_sciplex_{key}.csv'))
-        
-        except:
-            print(f'GSEA failed for {key}')
+            res.to_csv(os.path.join(results_dir, f'GSEA_{dataset}_{key}.csv'))
+        except Exception:
+            print(f'GSEA failed for {dataset} {key}')
             print(df.head())
 
-def main():
-    get_mcfarland_feature_importance()
-    feature_importance_means = pd.read_csv(os.path.join(results_dir, 'mcfarland_regression_feature_importance_means_filtered.csv'))
-    feature_importance_ordered = feature_importance_means.loc[:, ~feature_importance_means.columns.str.contains('condition_')]
-    feature_importance_ordered = feature_importance_ordered[feature_importance_ordered['model']=='Log(fold change)'].drop(columns=['model']).set_index('condition').T.reset_index()
-    perform_mcfarland_GSEA(feature_importance_ordered)
-    
+
+def perform_sciplex_GSEA(feature_importance):
+    perform_cpa_family_GSEA(feature_importance, 'sciplex')
+
+def main() -> None:
     sciplex_feature_importance = get_sciplex_feature_importance()
-    perform_sciplex_GSEA(sciplex_feature_importance)
+    perform_cpa_family_GSEA(sciplex_feature_importance, 'sciplex')
+
+    mcfarland_feature_importance = get_mcfarland_split_cv_feature_importance()
+    perform_cpa_family_GSEA(mcfarland_feature_importance, 'mcfarland')
 
 
 if __name__ == '__main__':
