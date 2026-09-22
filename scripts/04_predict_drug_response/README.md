@@ -39,48 +39,55 @@ Predicts drug sensitivity from measured and predicted gene-expression profiles (
 | `create_figures_correlations.ipynb` | Manuscript gene–gene figures |
 | `create_figures_GSEA.ipynb` | Manuscript GSEA figures |
 
-## Measured-task Slurm
+## Measured-task CV
 
 ```bash
-# 8 parallel jobs (SciPlex/McFarland × T1–T4), then finalize + figures
-bash scripts/04_predict_drug_response/submit_measured_task_cv.sh
+# Default: Pre+SMILES / Post+SMILES / LFC+SMILES, T1–T4, both datasets
+python scripts/04_predict_drug_response/run_measured_task_cv.py --dataset both
 
-# SMILES-only variants
-bash scripts/04_predict_drug_response/run_measured_smiles_task_cv.sh
-bash scripts/04_predict_drug_response/run_measured_smiles_task_cv_mcfarland.sh
+# Expression-only modalities
+python scripts/04_predict_drug_response/run_measured_task_cv.py \
+  --dataset both --models Pre,Post,LFC --output-tag nosmiles
 
-# Expression-only (no SMILES) tag for gene-only heads
-OUTPUT_TAG=nosmiles MEASURED_MODELS=Pre,Post,LFC \
-  bash scripts/04_predict_drug_response/submit_measured_task_cv.sh
+# Optional: combine shards after parallel per-task runs
+python scripts/04_predict_drug_response/run_measured_task_cv.py --combine-only
 ```
 
-Workers: `run_measured_task_cv.sh` (array 0–7), finalize: `run_measured_task_cv_finalize.sh` → `create_figures_tasks.py`.
+Useful flags: `--tasks T1,T2,T3,T4`, `--t1-scheme predefined_fold|exhaustive|both`, `--pseudobulk mean|count`, `--mode continuous|two-stage|threshold-sweep`.
 
 ## Predicted-profile split CV
 
-Chemical PRMs (CPA, chemCPA, PRnet) share CPA / SciPlex fold keys. McFarland GEARS / scFoundation use native folds; SciPlex genetic PRMs are expanded onto chemical SciPlex fold keys. With `--include-predicted-smiles`, Post+SMILES / LFC+SMILES heads are added for predicted models and baselines.
+Chemical PRMs (CPA, chemCPA, PRnet) share CPA / SciPlex fold keys. McFarland GEARS / scFoundation use native folds; SciPlex genetic PRMs are expanded onto chemical SciPlex fold keys. With `--include-predicted-smiles` (default), Post+SMILES / LFC+SMILES heads are added for predicted models and baselines.
 
 ```bash
-# Train AND test on predicted profiles (+ baselines)
-DATASET=both sbatch scripts/04_predict_drug_response/run_predicted_smiles_split_cv.sh
+# Train AND test on predicted profiles (+ baselines), SMILES heads only
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --smiles-only --no-include-observed --results-suffix _smiles \
+  --models CPA,chemCPA,PRnet,GEARS,scFoundation
 
 # Train on Measured, test on predicted
-DATASET=both sbatch scripts/04_predict_drug_response/run_train_measured_test_predicted_split_cv.sh
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --smiles-only --train-on-measured-test-on-predicted \
+  --results-suffix _train_measured_test_predicted \
+  --models CPA,chemCPA,PRnet,GEARS,scFoundation
 
-# Optional: gene-only heads / threshold sweep
-sbatch scripts/04_predict_drug_response/run_predicted_nosmiles_split_cv.sh
-sbatch scripts/04_predict_drug_response/run_predicted_threshold_sweep.sh
-# or from repo root:
-sbatch run_twopart_threshold_sweep.sh
+# Optional: gene-only heads / two-part threshold sweep
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --no-include-predicted-smiles --results-suffix ''
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --mode threshold-sweep --smiles-only --results-suffix _smiles
+```
 
-# Figures (scripts for batch; notebooks preferred for manuscript panels)
+## Figures
+
+```bash
 python scripts/04_predict_drug_response/create_figures_tasks.py
 python scripts/04_predict_drug_response/create_figures_predictions.py
 python scripts/04_predict_drug_response/create_figures_correlations.py
 python scripts/04_predict_drug_response/create_figures_GSEA.py
 ```
 
-Interactive manuscript figure notebooks (run from `scripts/04_predict_drug_response/`):
+Interactive manuscript notebooks (run from `scripts/04_predict_drug_response/`):
 
 - `create_figures_observations.ipynb`
 - `create_figures_predictions.ipynb`
@@ -95,9 +102,3 @@ Interactive manuscript figure notebooks (run from `scripts/04_predict_drug_respo
 - `results/04_predict_drug_response/predictions_*_{fold_metrics,paired_comparisons,...}.csv`
 - `figures/04_predict_drug_response/measured_tasks_*.pdf` / `predictions_*.pdf`
 - Supplementary TeX under `figures/04_predict_drug_response/` (included by `figures/submission_figures/Supplementary_Data.tex`)
-
-Full predicted-profile rerun (after step 03):
-
-```bash
-sbatch run_rerun_drug_response.sh
-```

@@ -1,6 +1,6 @@
 # 01: Process Measured Profiles
 
-To facilitate reproduction, we have made all processed files available here: https://surfdrive.surf.nl/s/Fdg4spN2zbtkwMa.
+Processed files for reproduction: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
 
 This stage builds processed AnnData objects with QC flags, perturbation matches, sensitivity labels, and 5-fold train/test splits.
 
@@ -26,6 +26,16 @@ resources/{sciplex,mcfarland}_split_identifiers.csv   # optional obs exports
 | `build_sciplex_sensitivity_info.py` | Rebuild `resources/sciplex_sensitivity_info.csv` |
 | `preprocess_utils.py` / `qc_utils.py` | Shared helpers |
 
+## Run
+
+```bash
+python scripts/01_process_measured_profiles/create_sciplex_splits.py
+python scripts/01_process_measured_profiles/create_mcfarland_splits.py
+python scripts/01_process_measured_profiles/create_qc_and_count_pseudobulk.py
+```
+
+Reassign folds on an existing processed h5ad with `--refresh-splits-only` (skip QC and normalize).
+
 ## Splits
 
 Treated pairs are the hold-out unit: all cells of a pair share a fold, so a pair is never in both train and test.
@@ -33,15 +43,5 @@ Treated pairs are the hold-out unit: all cells of a pair share a fold, so a pair
 - **SciPlex**: `(cell_type, condition)` within each cell line (`condition` = drug; gene labels in `gene_target`)
 - **McFarland**: `(cell_type, condition)` within each tissue
 - Controls: `fold=-1` (always train)
-
-Reassign folds on an existing processed h5ad with `--refresh-splits-only` (skip QC and normalize).
-
-## Slurm (from repo root)
-
-```bash
-sbatch run_create_sciplex_splits.sh
-sbatch run_create_mcfarland_splits.sh
-sbatch run_qc_and_count_pseudobulk.sh
-```
 
 `create_qc_and_count_pseudobulk.py`: SciPlex groups by `condition` (vehicles as `ctrl`); McFarland by `condition`. SciPlex count-level input must be raw UMIs (`layers['counts']` on the processed file, or the original `sciplex_raw` h5ad). McFarland counts are read from staff-bulk `mcfarland_raw/*/matrix.mtx`.

@@ -1,6 +1,6 @@
 # 02: Process Predicted Profiles
 
-To facilitate reproduction, we have made all processed files available here: https://surfdrive.surf.nl/s/Fdg4spN2zbtkwMa.
+Processed files for reproduction: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
 
 Creates log-mean observed pseudobulks and baseline (average-effect / no-effect) predictions.
 
@@ -22,8 +22,9 @@ Count-based pseudobulks (`*_count_*`) are written by
 | `create_pseudobulk.py` | Log-mean observed pseudobulks (SciPlex + McFarland) |
 | `create_baseline_predictions.py` | Average-effect and no-effect baselines |
 
-## Slurm (from repo root)
+## Run
 
 ```bash
-sbatch run_rerun_pseudobulk.sh
+python scripts/02_process_predicted_profiles/create_pseudobulk.py
+python scripts/02_process_predicted_profiles/create_baseline_predictions.py
 ```

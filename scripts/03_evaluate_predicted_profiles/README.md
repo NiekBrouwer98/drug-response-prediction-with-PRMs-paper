@@ -30,8 +30,17 @@ DE genes are saved under `results/03_evaluate_predicted_profiles/`.
 - **`create_figures.py`**: SciPlex | McFarland boxplots and reconstruction supplementary tables
 - **`create_figures.ipynb`**: same plots for interactive manuscript figure creation
 
+## Run
+
 ```bash
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_sciplex.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_sciplex_systema.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_mcfarland.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_mcfarland_systema.py
+
+# Optional: CPA / chemCPA / PRnet only
 python scripts/03_evaluate_predicted_profiles/evaluate_new_models.py
+
 python scripts/03_evaluate_predicted_profiles/create_figures.py
 ```
 
@@ -40,9 +49,3 @@ Figure prefixes:
 - GEARS family: `performance_boxplot_gears_family_*`
 - Systema: `performance_boxplot_systema_{cpa,gears}_family_*`
 - Tables: `reconstruction_metrics_summary.csv`, `prm_vs_baseline_significance.csv` (+ `_systema` variants) and matching TeX under `figures/03_evaluate_predicted_profiles/`
-
-## Slurm (from repo root)
-
-```bash
-sbatch run_rerun_profile_eval.sh
-```

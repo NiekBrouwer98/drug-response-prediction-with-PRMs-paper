@@ -18,8 +18,7 @@ drug-response-prediction/
 │   ├── 03_evaluate_predicted_profiles/
 │   └── 04_predict_drug_response/
 ├── config.py                      # Paths and analysis parameters
-├── utils.py                       # Shared logging / directory helpers
-└── run_*.sh                       # Slurm entrypoints (submit from repo root)
+└── utils.py                       # Shared logging / directory helpers
 ```
 
 ## Dependencies
@@ -66,39 +65,49 @@ Processed files for reproduction: https://surfdrive.surf.nl/s/DbRwLCbCXcbiC2E.
 
 Raw sources:
 - [McFarland et al. (2020)](https://figshare.com/s/139f64b495dea9d88c70)
-- [SciPlex / Srivatsan et al. (2020)](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE139944) (this repo reads the [scPerturb](http://projects.sanderlab.org/scperturb/) `Srivatsan_2019_raw.h5ad`)
+- [SciPlex3 / Srivatsan et al. (2020)](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE139944)
 
 ## Usage
 
-Stages are sequential. Prefer the Slurm wrappers at the repo root; each stage README lists the Python entrypoints.
+Stages are sequential. Commands below assume the repo root and a working Python environment (or wrap with `apptainer exec drug-response-prediction.sif …`). See `scripts/*/README.md` for options and outputs.
 
 ```bash
 # 01 — annotate / split measured profiles (+ optional QC count pseudobulks)
-sbatch run_create_sciplex_splits.sh
-sbatch run_create_mcfarland_splits.sh
-sbatch run_qc_and_count_pseudobulk.sh
+python scripts/01_process_measured_profiles/create_sciplex_splits.py
+python scripts/01_process_measured_profiles/create_mcfarland_splits.py
+python scripts/01_process_measured_profiles/create_qc_and_count_pseudobulk.py
 
 # 02 — log-mean observed pseudobulks + average/no-effect baselines
-sbatch run_rerun_pseudobulk.sh
+python scripts/02_process_predicted_profiles/create_pseudobulk.py
+python scripts/02_process_predicted_profiles/create_baseline_predictions.py
 
-# 03 — reconstruction metrics (CPA / chemCPA / PRnet / GEARS / scFoundation / baselines)
-sbatch run_rerun_profile_eval.sh
+# 03 — reconstruction metrics
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_sciplex.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_sciplex_systema.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_mcfarland.py
+python scripts/03_evaluate_predicted_profiles/evaluate_predictions_mcfarland_systema.py
+python scripts/03_evaluate_predicted_profiles/create_figures.py
 
-# 04 — measured T1–T4 task CV + predicted-profile split CV + figures
-bash scripts/04_predict_drug_response/submit_measured_task_cv.sh
-DATASET=both sbatch scripts/04_predict_drug_response/run_predicted_smiles_split_cv.sh
-DATASET=both sbatch scripts/04_predict_drug_response/run_train_measured_test_predicted_split_cv.sh
-sbatch run_rerun_drug_response.sh   # or run figure scripts directly (see stage READMEs)
+# 04 — measured T1–T4 task CV
+python scripts/04_predict_drug_response/run_measured_task_cv.py --dataset both
+
+# 04 — predicted-profile split CV (train/test on predicted; SMILES heads)
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --smiles-only --no-include-observed --results-suffix _smiles
+
+# 04 — train Measured → test predicted
+python scripts/04_predict_drug_response/response_prediction.py \
+  --dataset both --smiles-only --train-on-measured-test-on-predicted \
+  --results-suffix _train_measured_test_predicted
+
+# 04 — figures
+python scripts/04_predict_drug_response/create_figures_tasks.py
+python scripts/04_predict_drug_response/create_figures_predictions.py
+python scripts/04_predict_drug_response/create_figures_correlations.py
+python scripts/04_predict_drug_response/create_figures_GSEA.py
 ```
 
-Interactive / single-script runs:
-
-```bash
-apptainer exec drug-response-prediction.sif \
-  python scripts/01_process_measured_profiles/create_sciplex_splits.py
-```
-
-See `scripts/*/README.md` and `resources/README.md` for file-level detail.
+Manuscript figure notebooks live under `scripts/03_evaluate_predicted_profiles/` and `scripts/04_predict_drug_response/` (see stage READMEs). Reference tables: `resources/README.md`.
 
 ## Citation
 
