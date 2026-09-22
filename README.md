@@ -130,4 +130,4 @@ Niek Brouwer: n.brouwer-1@tudelft.nl
 
 ## Acknowledgments
 
-We thank the developers of CPA, GEARS, and scFoundation for making their models publicly available. This research is part of the Oncode Accelerator Project funded by the Dutch National Growth Fund (NGF).
+We thank the developers of CPA, chemCPA, PRnet, GEARS, and scFoundation for making their models publicly available. This research is part of the Oncode Accelerator Project funded by the Dutch National Growth Fund (NGF).
